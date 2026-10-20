@@ -1,0 +1,29 @@
+services:
+  agency-os:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agency-os:latest
+    restart: unless-stopped
+    env_file:
+      - /opt/polymath/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Öffentliche URL für Links und Rücksprünge der Anwendung.
+      BASE_URL: ${AGENCY_OS_BASE_URL:-https://agencyos.com}
+      # Derselbe zentrale Firebase-Service-Account wie im Polymath-Backend,
+      # ausschließlich read-only in den Container gemountet.
+      FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-admin-key.json
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-polymath-productions}
+    volumes:
+      - ${FIREBASE_KEY_PATH:-/etc/polymath/firebase-admin-key.json}:/run/secrets/firebase-admin-key.json:ro
+    expose:
+      - "3000"
+    networks:
+      - n8n_proxy
+
+networks:
+  n8n_proxy:
+    external: true
+    name: n8n-server_default

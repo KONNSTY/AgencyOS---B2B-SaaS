@@ -1,0 +1,90 @@
+// Draft rules for an isolated AgencyOS Firebase project only.
+// DO NOT deploy these rules to the shared polymath-productions project.
+// The shared project is governed by the Polymath server-only rules.
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS (Zero-Trust Validation)
+    // =========================================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // USERS COLLECTION (Anti-Privilege Escalation Rules)
+    // =========================================================================
+    match /users/{userId} {
+      // Nur der Inhaber darf sein eigenes Profil lesen
+      allow read: if isOwner(userId);
+
+      // Beim Erstellen müssen Standardwerte gesetzt sein (keine Manipulation von Pro-Status)
+      allow create: if isOwner(userId)
+                    && request.resource.data.isPro == false
+                    && request.resource.data.freeProposalsUsed == 0
+                    && request.resource.data.email == request.auth.token.email;
+
+      // Beim Update dürfen sensible Felder nicht verändert werden (Abo-Status, Zähler etc.)
+      // Diese Felder werden ausschließlich vom sicheren Backend/Stripe-Webhook aktualisiert.
+      allow update: if isOwner(userId)
+                    && request.resource.data.isPro == resource.data.isPro
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                        'freeProposalsUsed', 
+                        'freeProposalsUsedByDocType', 
+                        'stripeCustomerId', 
+                        'stripeSubscriptionId', 
+                        'subscriptionStatus',
+                        'subscriptionAccessUntil',
+                        'subscriptionCurrentPeriodEnd',
+                        'currentPeriodEnd',
+                        'cancelAtPeriodEnd',
+                        'plan',
+                        'upgradedAt',
+                        'downgradedAt',
+                        'paymentFailedAt',
+                        'lastPaymentAt',
+                        'isPro'
+                    ]))
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                        'uid', 'email', 'displayName', 'photoURL', 'agencyName',
+                        'agencyEmail', 'agencyPhone', 'agencyAddress', 'logoUrl',
+                        'brandLogoUrl', 'brandPrimaryColor', 'brandColor',
+                        'hideBranding', 'customDomain', 'marketingOptIn', 'updatedAt'
+                    ]);
+
+      allow delete: if false; // Löschung nur über Backend
+    }
+
+    // =========================================================================
+    // PROPOSALS COLLECTION (Feature 1: E-Sign & Security)
+    // =========================================================================
+    match /proposals/{proposalId} {
+      // Nur der Ersteller darf seine eigenen Proposals auflisten/lesen
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+
+      // Erstellung nur mit korrekter eigener User-ID möglich
+      allow create: if false;
+
+      // Updates nur für eigene Dokumente und die User-ID darf nicht auf eine fremde geändert werden
+      allow update: if false;
+
+      // Löschung nur eigener Dokumente
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // DEFAULT DENY ALL
+    // =========================================================================
+    // Sperrt alle anderen, nicht explizit erlaubten Zugriffe ab
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

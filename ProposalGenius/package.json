@@ -1,0 +1,33 @@
+{
+  "name": "agency-os",
+  "version": "1.0.0",
+  "description": "AgencyOS - The Operating System for Modern Agencies & Freelancers - From Briefing to Invoice",
+  "main": "server.js",
+  "scripts": {
+    "seo:build": "node tools/build-international-seo-pages.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "b2b",
+    "proposals",
+    "freelancer",
+    "webdesign",
+    "stripe",
+    "firebase"
+  ],
+  "author": "AgencyOS",
+  "license": "MIT",
+  "dependencies": {
+    "@getbrevo/brevo": "^6.0.2",
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.6.2",
+    "firebase": "^12.17.0",
+    "firebase-admin": "^12.7.0",
+    "helmet": "^8.3.0",
+    "stripe": "^16.12.0"
+  }
+}

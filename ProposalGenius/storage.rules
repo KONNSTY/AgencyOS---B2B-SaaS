@@ -1,0 +1,58 @@
+// Draft rules for an isolated AgencyOS Firebase project only.
+// DO NOT deploy these rules to the shared polymath-productions project.
+// The shared project is governed by the Polymath server-only rules.
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // =========================================================================
+    // HELPER FUNCTIONS (Zero-Trust Storage Validation)
+    // =========================================================================
+    
+    // Prüft das serverseitig gepflegte, zeitlich begrenzte Entitlement.
+    function isProUser(userId) {
+      return firestore.get(/databases/(default)/documents/users/$(userId)).data.isPro == true
+             && firestore.get(/databases/(default)/documents/users/$(userId)).data.subscriptionAccessUntil > request.time
+             && (firestore.get(/databases/(default)/documents/users/$(userId)).data.subscriptionStatus == 'active'
+                 || firestore.get(/databases/(default)/documents/users/$(userId)).data.subscriptionStatus == 'trialing'
+                 || firestore.get(/databases/(default)/documents/users/$(userId)).data.subscriptionStatus == 'past_due');
+    }
+
+    // =========================================================================
+    // LOGO UPLOADS (Streng geschützt: Nur zahlende Pro-Kunden)
+    // =========================================================================
+    match /logos/{userId}/{fileName} {
+      
+      // 1. LESEN: Jeder darf Bilder für Angebote laden (öffentlich für Kunden)
+      allow read: if true;
+
+      // 2. UPLOAD & LÖSCHEN:
+      // ZERO-TRUST GATING:
+      // - Nutzer muss authentifiziert sein
+      // - Pfad muss der eigenen User-ID entsprechen
+      // - Firestore-Dokument MUSS isPro == true bestätigen (Cross-Check!)
+      // - Datei muss ein Bild sein und darf max. 5 MB groß sein
+      allow create: if request.auth != null
+                   && request.auth.uid == userId
+                   && isProUser(userId)
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && isProUser(userId)
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // DEFAULT DENY ALL (Kein unbefugter Zugriff auf andere Ordner)
+    // =========================================================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

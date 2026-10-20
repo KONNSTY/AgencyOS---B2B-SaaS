@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokument einsehen & digital freigeben | AgencyOS</title>
+    <meta name="robots" content="noindex, nofollow">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- html2pdf.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Signature Pad CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+    <script src="view.js" defer></script>
+</head>
+
+<body class="bg-slate-950 text-slate-800 antialiased min-h-full flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+
+    <!-- Top Client Header -->
+    <header class="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between shrink-0 z-30 sticky top-0" id="viewerHeader">
+        <div class="flex items-center gap-3">
+            <div id="headerBrandIcon" class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md shadow-blue-600/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+            </div>
+            <img id="headerBrandLogo" src="" alt="Logo" class="max-h-7 max-w-[140px] hidden object-contain">
+            <div>
+                <span id="headerBrandTitle" class="text-sm font-bold font-display text-white tracking-tight">AgencyOS Secure Portal</span>
+                <span id="headerBrandBadge" class="hidden sm:inline-block ml-2 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">SSL Encrypted</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div id="proposalStatusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="proposalStatusBadgeText">Wartet auf Signatur</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Viewer Area -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center">
+        
+        <!-- Loading State -->
+        <div id="viewLoader" class="flex flex-col items-center justify-center my-24">
+            <div class="w-12 h-12 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+            <p class="text-sm font-semibold text-slate-300 font-display">Angebot wird sicher geladen...</p>
+            <p class="text-xs text-slate-500 mt-1">Verschlüsselte Dokumentenverbindung</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="viewError" class="hidden bg-slate-900 border border-red-500/30 rounded-2xl p-8 max-w-md w-full text-center my-16 shadow-2xl">
+            <div class="w-12 h-12 bg-red-500/10 text-red-400 rounded-xl flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2" id="errorMessageTitle">Zugriff verweigert</h3>
+            <p class="text-xs text-slate-400 leading-relaxed" id="errorMessageText">
+                Der aufgerufene Zugriffslink ist ungültig oder abgelaufen.
+            </p>
+        </div>
+
+        <!-- Document Viewer Container -->
+        <div id="proposalContainer" class="w-full max-w-[840px] bg-white rounded-xl shadow-2xl relative transition-all duration-300 hidden mb-24">
+            <div id="export-document" class="p-10 sm:p-16 lg:p-20 min-h-[1050px] flex flex-col justify-between bg-white rounded-xl">
+                
+                <!-- Top Part -->
+                <div>
+                    <!-- Header -->
+                    <header class="flex justify-between items-start border-b border-slate-200 pb-8 mb-8">
+                        <div class="flex flex-col gap-3">
+                            <img id="docLogo" src="" alt="Logo" class="max-h-12 max-w-[180px] hidden object-contain">
+                            <div>
+                                <h2 id="docAgency" class="text-xl font-bold text-slate-900 font-display tracking-tight">Agentur</h2>
+                                <p id="docEmail" class="text-xs text-slate-500 mt-0.5 font-sans"></p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span id="docBadgeText" class="inline-block bg-blue-50 text-blue-700 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-md mb-2">Projektangebot</span>
+                            <p class="text-xs text-slate-500"><span id="docDateLabel">Datum:</span> <strong id="docDate" class="text-slate-700 font-medium">-</strong></p>
+                            <p class="text-xs text-slate-400 mt-0.5"><span id="docNumberLabel">Angebots-Nr.:</span> <span id="docNumber">-</span></p>
+                        </div>
+                    </header>
+
+                    <!-- Client Info Block -->
+                    <div class="mb-8 p-4 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center">
+                        <div>
+                            <p id="docClientLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Erstellt für den Kunden</p>
+                            <p id="docClient" class="text-base font-bold text-slate-900 font-display mt-0.5">-</p>
+                        </div>
+                        <div class="text-right">
+                            <p id="docCategoryLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Projekt</p>
+                            <p id="docCategory" class="text-xs font-semibold text-blue-600 mt-0.5">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Proposal Body Content -->
+                    <div id="aiTextContent" class="prose prose-slate max-w-none text-[14px] leading-relaxed text-slate-700 p-2 min-h-[350px]">
+                    </div>
+
+                    <!-- Dynamic ROI Calculator Container (Feature 2) -->
+                    <div id="roiCalculatorContainer" class="hidden my-10 p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 border border-slate-700/80 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                        <div class="flex items-center justify-between gap-3 border-b border-slate-700/60 pb-4 mb-6">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 id="roiCalcTitle" class="text-base font-bold font-display text-white">Geschätzter Mehrumsatz & ROI-Rechner</h4>
+                                    <p id="roiCalcDesc" class="text-xs text-slate-400">Passe den Schieberegler an dein individuelles Potenzial an:</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-full">
+                                Live-Simulation
+                            </span>
+                        </div>
+
+                        <!-- Slider Area -->
+                        <div class="space-y-4 mb-8">
+                            <div class="flex justify-between items-center text-xs">
+                                <span id="roiSliderLabelText" class="font-medium text-slate-300">Zusätzliche Neukunden / Monat:</span>
+                                <span class="font-bold text-base text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-0.5 rounded-lg font-mono">
+                                    <span id="roiSliderValDisplay">10</span> <span id="roiSliderUnitText">Kunden</span>
+                                </span>
+                            </div>
+                            <input type="range" id="roiSliderInput" min="1" max="50" step="1" value="10"
+                                class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+                                <span id="roiMinLabel">1</span>
+                                <span id="roiMidLabel">25</span>
+                                <span id="roiMaxLabel">50+</span>
+                            </div>
+                        </div>
+
+                        <!-- Calculation Results Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                            <div class="p-4 bg-slate-800/80 border border-slate-700/60 rounded-xl">
+                                <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider" id="roiMonthlyLabel">Monatlicher Mehrwert</p>
+                                <p class="text-xl font-extrabold text-white font-display mt-1" id="roiMonthlyResult">ca. 5.000 €</p>
+                            </div>
+                            <div class="p-4 bg-gradient-to-br from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-xl">
+                                <p class="text-[11px] font-bold text-blue-400 uppercase tracking-wider" id="roiResultLabel">Geschätzter jährlicher Mehrertrag</p>
+                                <p class="text-2xl font-extrabold text-emerald-400 font-display mt-1 tracking-tight" id="roiAnnualResult">ca. 60.000 €</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Signature Display (Audit Box) -->
+                    <div id="signatureAuditBox" class="hidden mt-10 p-6 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-emerald-200/60 pb-3">
+                            <div class="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                </svg>
+                                <span id="auditTitleText">Digitale E-Signatur & Rechtsgültiger Audit-Trail</span>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider bg-emerald-200/60 text-emerald-800 px-2.5 py-0.5 rounded-full" id="auditVerifiedBadge">
+                                Verifiziert
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-700">
+                            <div>
+                                <p class="text-slate-500 text-[11px]" id="auditSignerLabel">Unterzeichnet von:</p>
+                                <p id="auditSignerName" class="font-bold text-slate-900 mt-0.5">-</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-[11px]" id="auditDateLabel">Zeitstempel (UTC/Lokal):</p>
+                                <p id="auditSignedAt" class="font-medium text-slate-900 mt-0.5">-</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-[11px]">IP-Adresse:</p>
+                                <p id="auditIp" class="font-mono text-slate-800 mt-0.5">-</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-[11px]" id="auditStatusLabel">Status:</p>
+                                <p class="font-semibold text-emerald-700 mt-0.5" id="auditStatusVal">Rechtsverbindlich freigegeben</p>
+                            </div>
+                            <div class="col-span-2 pt-2 border-t border-emerald-200/40">
+                                <p class="text-slate-500 text-[10px]">Signature SHA-256 Hash (eIDAS Audit Trail):</p>
+                                <p id="auditHash" class="font-mono text-[10px] text-emerald-800 break-all select-all mt-0.5">-</p>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-emerald-200/60 flex items-center justify-between">
+                            <span class="text-[11px] text-slate-500" id="auditVisualLabel">Visuelle Unterschrift:</span>
+                            <img id="auditSignatureImg" src="" alt="Unterschrift" class="max-h-12 border border-slate-200 rounded-lg p-1 bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Part -->
+                <div class="mt-12 pt-8 border-t border-slate-200">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <p id="docTimelineLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Umsetzungszeitraum / Timeline</p>
+                            <p id="docDeadline" class="text-base font-bold text-slate-900 mt-1">-</p>
+                        </div>
+                        <div class="p-4 bg-blue-50/80 rounded-xl border border-blue-100 text-right sm:text-left">
+                            <p id="docBudgetLabel" class="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Gesamtinvestition (Netto)</p>
+                            <p id="docBudget" class="text-xl font-bold text-blue-700 font-display mt-1">-</p>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] text-slate-400 flex justify-between items-center pt-4 border-t border-slate-100">
+                        <span id="docValidityLabel">Gültigkeit: 14 Tage ab Angebotsdatum</span>
+                        <span id="docEngineNotice">AgencyOS Secure E-Sign Engine</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Sticky Client Action Bar at Bottom -->
+    <div id="stickyBottomBar" class="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur border-t border-slate-800 p-4 z-40 hidden shadow-2xl">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <p id="bottomBarTitle" class="text-sm font-bold font-display text-white">Projektangebot prüfen & digital bestätigen</p>
+                <p id="bottomBarSubtitle" class="text-xs text-slate-400 mt-0.5">Unterzeichne direkt im Browser ohne Ausdrucken oder Scannen.</p>
+            </div>
+
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <button id="downloadPdfBtn"
+                    class="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    <span id="downloadPdfBtnText">PDF sichern</span>
+                </button>
+
+                <button id="openSignModalBtn"
+                    class="flex-1 sm:flex-none bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                    <span id="openSignModalBtnText">Jetzt digital signieren</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Viral Growth Loop Banner (Product-Led Growth Engine) -->
+    <div id="viralGrowthBanner" class="w-full max-w-[840px] mx-auto mb-8 transition-all duration-300">
+        <div class="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-blue-500/30 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xl backdrop-blur relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+            <div class="flex items-center gap-3.5 z-10">
+                <div class="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white rounded-xl flex items-center justify-center font-bold shrink-0 shadow-lg shadow-blue-500/20">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <p class="font-bold text-white text-sm">Erstellt mit AgencyOS</p>
+                        <span class="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded-full font-medium">B2B SaaS</span>
+                    </div>
+                    <p class="text-slate-300 text-xs mt-0.5">Erstelle selbst professionelle B2B-Dokumente mit KI in 3 Min. & gewinne mehr Kunden.</p>
+                </div>
+            </div>
+            <a href="/index.html?ref=agencyos_viral_badge" target="_blank" class="shrink-0 px-4 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 font-bold rounded-xl text-white text-xs shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center gap-1.5 z-10">
+                <span>Jetzt kostenlos testen</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </a>
+        </div>
+    </div>
+
+    <!-- Proposal Page Footer -->
+    <footer id="viewerPageFooter" class="mt-8 mb-16 px-4 text-center flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 max-w-4xl mx-auto w-full">
+        <span id="footerBrandLeft">Sicher bereitgestellt über AgencyOS • Betreiber: <a href="https://reglerproductions.com" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline font-medium">Regler Productions</a></span>
+        <div id="footerBrandLinks" class="flex items-center gap-3 text-[11px] text-slate-500">
+            <a href="https://reglerproductions.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">reglerproductions.com</a>
+            <span>•</span>
+            <a href="https://reglerproductions.com/datenschutz.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Datenschutz</a>
+            <span>•</span>
+            <a href="https://reglerproductions.com/impressum.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Impressum</a>
+            <span>•</span>
+            <a href="https://reglerproductions.com/agb.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">AGB</a>
+        </div>
+    </footer>
+    </main>
+
+    <!-- Digital Signature Modal -->
+    <div id="signatureModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full relative transform scale-95 transition-transform duration-300 text-slate-100">
+            
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold font-display text-white" id="signModalTitle">Angebot rechtsverbindlich signieren</h3>
+                        <p class="text-xs text-slate-400" id="signModalSubtitle">Zeichne deine Unterschrift mit Finger, Stift oder Maus</p>
+                    </div>
+                </div>
+                <button id="closeSignModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+
+            <form id="signatureForm" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1" id="signerNameInputLabel">Vollständiger Name *</label>
+                        <input type="text" id="signerNameInput" required placeholder="z.B. Max Mustermann"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1" id="signerRoleInputLabel">Position / Rolle</label>
+                        <input type="text" id="signerRoleInput" placeholder="z.B. Geschäftsführer"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all">
+                    </div>
+                </div>
+
+                <!-- Canvas Box -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-[11px] font-medium text-slate-400" id="signatureCanvasLabel">Deine Unterschrift *</label>
+                        <button type="button" id="clearCanvasBtn" class="text-[10px] text-slate-400 hover:text-red-400 transition-colors">
+                            Feld leeren
+                        </button>
+                    </div>
+                    <div class="border-2 border-dashed border-slate-700 hover:border-slate-600 rounded-xl overflow-hidden bg-white relative">
+                        <canvas id="signatureCanvas" class="w-full h-40 touch-none cursor-crosshair block"></canvas>
+                        <div class="absolute bottom-2 right-2 pointer-events-none text-[9px] text-slate-400 uppercase tracking-wider bg-white/80 px-1.5 py-0.5 rounded">
+                            Unterschriftsfeld
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 text-[11px] text-slate-400 flex items-start gap-2">
+                    <svg class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span id="signLegalNotice">Mit Klick auf "Verbindlich signieren" bestätigst du dieses Angebot zu den genannten Konditionen rechtswirksam.</span>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" id="cancelSignBtn"
+                        class="flex-1 bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-semibold py-3 rounded-xl transition-colors">
+                        Abbrechen
+                    </button>
+
+                    <button type="submit" id="submitSignBtn"
+                        class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex justify-center items-center gap-2 text-xs">
+                        <span id="submitSignBtnText">Verbindlich signieren</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </button>
+                </div>
+    <!-- DSGVO Cookie & Consent Banner -->
+    <div id="dsgvoCookieBanner" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 p-5 rounded-2xl shadow-2xl z-50 transition-all duration-300 hidden">
+        <div class="flex items-start gap-3.5">
+            <div class="p-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 002-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white mb-1">Datenschutz & Cookies</h4>
+                <p class="text-xs text-slate-300 leading-relaxed mb-3">
+                    Wir nutzen essenzielle LocalStorage-Daten & technisch notwendige Cookies für Authentifizierung, E-Sign-Sicherheit und anonymisierte Analytics nach DSGVO Art. 6 Abs. 1 lit. f.
+                </p>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="acceptDsgvoCookiesBtn" class="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl shadow-md transition-all">
+                        Einverstanden
+                    </button>
+                    <a href="datenschutz.html" target="_blank" class="px-3 py-2 text-xs text-slate-400 hover:text-white transition-colors">
+                        Datenschutz
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

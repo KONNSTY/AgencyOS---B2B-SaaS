@@ -1,0 +1,13 @@
+.env
+.env.*
+.git
+.git/**
+node_modules
+public/firebase-runtime-config.js
+*.json
+!package.json
+!package-lock.json
+proposalgen-*-firebase-adminsdk-*.json
+coverage
+npm-debug.log*
+docs/integration/*.local.md

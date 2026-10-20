@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KI-Angebotssoftware für Agenturen &amp; Freelancer | AgencyOS</title>
+    <meta name="description" content="Erstelle mit AgencyOS KI-gestützte Angebote, Briefings, Verträge und Projekt-Roadmaps. Für Agenturen und Freelancer; Entwürfe prüfen, anpassen und als PDF exportieren.">
+    <link rel="canonical" href="https://agencyos.com/">
+    <link rel="alternate" hreflang="de" href="https://agencyos.com/">
+    <link rel="alternate" hreflang="en" href="https://agencyos.com/en/">
+    <link rel="alternate" hreflang="fr" href="https://agencyos.com/fr/">
+    <link rel="alternate" hreflang="es" href="https://agencyos.com/es/">
+    <link rel="alternate" hreflang="id" href="https://agencyos.com/id/">
+    <link rel="alternate" hreflang="zh-Hans" href="https://agencyos.com/zh-hans/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://agencyos.com/zh-hant/">
+    <link rel="alternate" hreflang="ja" href="https://agencyos.com/ja/">
+    <link rel="alternate" hreflang="x-default" href="https://agencyos.com/">
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="AgencyOS">
+    <meta property="og:title" content="KI-Angebotssoftware für Agenturen &amp; Freelancer | AgencyOS">
+    <meta property="og:description" content="Erstelle mit AgencyOS KI-gestützte Angebote, Briefings, Verträge und Projekt-Roadmaps. Für Agenturen und Freelancer.">
+    <meta property="og:url" content="https://agencyos.com/">
+    <meta property="og:locale" content="de_DE">
+    <meta name="twitter:card" content="summary">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "AgencyOS",
+      "url": "https://agencyos.com/",
+      "description": "KI-gestützte Webanwendung für Agenturen und Freelancer zum Erstellen von Projektangeboten und Geschäftsdokumenten.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web browser",
+      "inLanguage": "de",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Regler Productions",
+        "url": "https://reglerproductions.com"
+      },
+      "featureList": [
+        "KI-gestützte Projektangebote und Briefings",
+        "Verträge, Roadmaps, Abnahmen und Rechnungen als Dokumententypen",
+        "Dokumententwürfe in auswählbaren Sprachen",
+        "PDF-Export",
+        "Optionale Freigabe- und E-Signatur-Funktionen"
+      ]
+    }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+                        mono: ['"Space Grotesk"', 'monospace']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- html2pdf.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Firebase SDKs (Compat v10 for CDN) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+    
+    <!-- Firebase-Konfiguration: wird im Container aus der gemeinsamen
+         Polymath-Produktionsumgebung erzeugt. -->
+    <script src="/firebase-runtime-config.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="marketing.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body class="bg-slate-950 text-slate-800 antialiased min-h-screen flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+
+    <!-- ========================================================================= -->
+    <!-- MAIN APPLICATION WORKSPACE ("Try before Sign-up" - Sofort geöffnet)       -->
+    <!-- ========================================================================= -->
+    <div id="appWorkspace" class="flex-none min-h-screen flex flex-col overflow-hidden bg-slate-950">
+
+        <!-- Top Header Navigation -->
+        <header class="h-16 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-6 flex items-center justify-between shrink-0 z-30">
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md shadow-blue-600/20">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="text-base font-bold font-display text-white tracking-tight">AgencyOS</span>
+                        <span class="hidden sm:inline-block ml-2 text-[11px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">Agency OS</span>
+                    </div>
+                </div>
+
+                <!-- Plan Status Indicator -->
+                <div id="planBadgeContainer" class="flex items-center">
+                    <span id="planBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                        <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                        <span id="planBadgeText">Gast-Modus (1 Dokument frei)</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Right Controls -->
+            <div class="flex items-center gap-3">
+                <!-- Guest State -->
+                <div id="guestControls" class="flex items-center gap-2">
+                    <button id="openAuthModalBtn" class="text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
+                        </svg>
+                        <span>Anmelden / Account</span>
+                    </button>
+                </div>
+
+                <!-- Logged In State -->
+                <div id="userControls" class="hidden flex items-center gap-2.5">
+                    
+                    <!-- FEATURE 3: Dashboard & Saved Proposals Button -->
+                    <button id="openDashboardModalBtn" title="Gespeicherte Angebote & Analytics Dashboard"
+                        class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        <span class="hidden sm:inline">Meine Angebote</span>
+                        <span id="dashboardCountBadge" class="hidden text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded-full">0</span>
+                    </button>
+
+                    <!-- FEATURE 2: CRM & Zapier Button -->
+                    <button id="openCrmModalBtn" title="CRM & Zapier Automatisierung"
+                        class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                        <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span class="hidden sm:inline">CRM / Zapier</span>
+                        <span class="text-[9px] font-extrabold bg-orange-400/10 text-orange-400 px-1 py-0.2 rounded border border-orange-400/20">PRO</span>
+                    </button>
+
+                    <button id="upgradeHeaderBtn" class="hidden text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 px-3.5 py-1.5 rounded-lg shadow-md shadow-orange-500/20 transition-all items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        Upgrade auf Pro
+                    </button>
+
+                    <button id="profileModalBtn" title="Agentur-Stammdaten bearbeiten"
+                        class="flex items-center gap-2 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12-10a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        <span id="userEmailNav" class="max-w-[140px] truncate">Profil</span>
+                    </button>
+
+                    <button id="logoutBtn" title="Abmelden"
+                        class="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                    
+                    <button id="headerPrivacySettingsBtn" title="Datenschutzeinstellungen"
+                        class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 002-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Payment Success Banner -->
+        <div id="paymentSuccessBanner" class="hidden bg-emerald-600 text-white px-6 py-2.5 text-xs font-medium flex items-center justify-between shadow-inner">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span><strong>Zahlung erfolgreich!</strong> Deine AgencyOS-Pro-Mitgliedschaft wird nach bestätigtem Stripe-Webhook für den bezahlten Abrechnungszeitraum freigeschaltet. Unbegrenzte Dokumente, E-Sign, CRM-Webhooks, Tracking, i18n & Templates sind aktiv, solange das Abo bezahlt ist.</span>
+            </div>
+            <button id="closeBannerBtn" class="text-white/80 hover:text-white text-lg">&times;</button>
+        </div>
+
+        <!-- Main Content Layout -->
+        <div class="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
+            
+            <!-- ================================================================= -->
+            <!-- 1. SIDEBAR: EINGABEMASKE, TEMPLATES & THEMES                      -->
+            <!-- ================================================================= -->
+            <aside class="w-full lg:w-[430px] bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 h-auto lg:h-full overflow-y-auto z-20">
+                <div class="p-6 space-y-5 flex-1">
+                    
+                    <!-- Intro Hint -->
+                    <div class="bg-gradient-to-r from-blue-600/10 to-indigo-600/10 border border-blue-500/20 rounded-xl p-3.5 flex items-start gap-3">
+                        <div class="w-6 h-6 rounded-md bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-[11px] text-slate-300 leading-relaxed">
+                            <strong>Try before Sign-up:</strong> Wähle eine Nischen-Vorlage oder trage deine Stichpunkte ein. Die KI generiert dein verkaufsstarkes Angebot.
+                        </p>
+                    </div>
+
+                    <!-- FEATURE 5: EXPANDED TEMPLATE & THEME SELECTION BAR -->
+                    <section class="bg-slate-800/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
+                                </svg>
+                                <span>Design-Themes & Vorlagen</span>
+                            </h2>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[9px] font-extrabold bg-gradient-to-r from-amber-500/20 to-amber-400/10 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
+                                    <span>👑</span> 18 THEMEN
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Theme Filter Buttons -->
+                        <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 text-[11px]">
+                            <button type="button" id="themeFilterAll" class="theme-filter-btn flex-1 py-1 px-2 rounded-lg font-semibold bg-blue-600 text-white transition-all text-center">
+                                Alle (18)
+                            </button>
+                            <button type="button" id="themeFilterFree" class="theme-filter-btn flex-1 py-1 px-2 rounded-lg font-semibold text-slate-400 hover:text-white transition-all text-center">
+                                🌟 Free (3)
+                            </button>
+                            <button type="button" id="themeFilterPro" class="theme-filter-btn flex-1 py-1 px-2 rounded-lg font-semibold text-amber-400 hover:text-amber-300 transition-all text-center flex items-center justify-center gap-1">
+                                <span>👑</span> Pro (15)
+                            </button>
+                        </div>
+
+                        <!-- 1. Quick Dropdown Selector -->
+                        <div>
+                            <label for="themeSelectDropdown" class="block text-[11px] font-medium text-slate-400 mb-1 flex items-center justify-between">
+                                <span>Schnellauswahl</span>
+                                <span class="text-[10px] text-slate-500 font-mono" id="activeThemeBadge">Modern Minimal</span>
+                            </label>
+                            <select id="themeSelectDropdown" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                                <optgroup label="🌟 Free Vorlagen (3)">
+                                    <option value="modern-minimal" selected>⚪ Modern Minimal (Freelancer)</option>
+                                    <option value="tech-stark">⚡ Tech Stark (IT & Devs)</option>
+                                    <option value="creative-bold">🎨 Creative Bold (Design & Ads)</option>
+                                </optgroup>
+                                <optgroup label="👑 Pro Designer Vorlagen (15)">
+                                    <option value="executive-corporate">👑 🏛️ Executive Corporate (Kanzlei)</option>
+                                    <option value="startup-vibrant">👑 🚀 Startup Vibrant (SaaS)</option>
+                                    <option value="luxury-gold">👑 👑 Luxury Gold (High-Ticket)</option>
+                                    <option value="eco-sustainable">👑 🌿 Eco Sustainable (Green-Tech)</option>
+                                    <option value="architectural-grid">👑 📐 Architectural Grid (Architekten)</option>
+                                    <option value="bold-agency">👑 💥 Bold Agency (Kreativstudio)</option>
+                                    <option value="financial-trust">👑 🛡️ Financial Trust (Fintech)</option>
+                                    <option value="creative-dark">👑 🌌 Creative Dark (Digital Labs)</option>
+                                    <option value="minimal-warmth">👑 ☕ Minimal Warmth (Coaching)</option>
+                                    <option value="cyber-security">👑 🔒 Cyber Security (Infosec)</option>
+                                    <option value="consulting-pro">👑 📊 Consulting Pro (Strategie)</option>
+                                    <option value="ecommerce-growth">👑 🛍️ E-Commerce Growth (Shopify)</option>
+                                    <option value="editorial-magazine">👑 📰 Editorial Magazine (PR & Print)</option>
+                                    <option value="neon-punch">👑 ⚡ Neon Punch (Modern Art)</option>
+                                    <option value="simple-mono">👑 ⌨️ Simple Mono (Typewriter)</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <!-- 2. Visual Theme Grid / Card Browser -->
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1.5 flex items-center justify-between">
+                                <span>Visuelle Themen-Galerie</span>
+                                <span class="text-[10px] text-amber-400/80">Klick zur Vorschau</span>
+                            </label>
+                            <div id="themeGridContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700">
+                                <!-- Cards will be dynamically rendered / populated -->
+                            </div>
+                        </div>
+
+                        <!-- 3. Niche Preset Selector -->
+                        <div class="pt-2 border-t border-slate-800">
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1 flex items-center justify-between">
+                                <span>Nischen-Vorlage laden</span>
+                                <span class="text-[10px] text-slate-500">Auto-Fill Formular</span>
+                            </label>
+                            <select id="nichePresetSelect" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-amber-300 font-medium focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all cursor-pointer">
+                                <option value="">⚡ Vorlage auswählen (Presets)...</option>
+                                <option value="webdesign">💻 Webdesign & WordPress Relaunch</option>
+                                <option value="seo">🔍 SEO & Organisches Wachstum</option>
+                                <option value="ecommerce">🛍️ E-Commerce & Shopify Online-Shop</option>
+                                <option value="branding">🎨 Brand Identity & Corporate Design</option>
+                                <option value="saas">🚀 Custom Web-App & SaaS MVP</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <!-- Sektion 1: Agentur & Branding -->
+                    <section class="bg-slate-800/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-md bg-blue-500/10 text-blue-400 flex items-center justify-center text-[10px]">1</span>
+                                Absender & Branding
+                            </h2>
+                            <button id="quickSaveProfileBtn" class="text-[11px] text-slate-400 hover:text-blue-400 transition-colors">
+                                In Profil sichern
+                            </button>
+                        </div>
+
+                        <!-- Logo Upload -->
+                        <div>
+                            <input type="file" id="logoInput" accept="image/*" class="hidden">
+                            <button type="button" id="uploadLogoBtn"
+                                class="w-full bg-slate-800 hover:bg-slate-750 border border-dashed border-slate-700 text-slate-300 rounded-xl px-4 py-2 text-xs font-medium hover:border-blue-500/60 hover:text-blue-300 transition-all flex justify-between items-center group">
+                                <div class="flex items-center gap-2">
+                                    <svg id="logoUploadIcon" class="w-4 h-4 text-slate-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <span id="logoUploadText">Firmenlogo hinzufügen</span>
+                                </div>
+                                <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded border border-amber-400/20 group-hover:bg-amber-400 group-hover:text-slate-950 transition-all">
+                                    PRO
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-2.5">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Agenturname / Freelancer</label>
+                                <input type="text" id="agencyName" placeholder="z.B. Studio Nova Webdesign"
+                                    class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Kontakt E-Mail</label>
+                                <input type="email" id="agencyEmail" placeholder="kontakt@studionova.de"
+                                    class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Sektion 2: Projekt-Details & KI-FEINTUNING (Sprache & Tonfall) -->
+                    <section class="bg-slate-800/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+                        <h2 class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center justify-between">
+                            <span class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-md bg-blue-500/10 text-blue-400 flex items-center justify-center text-[10px]">2</span>
+                                Projekt-Briefing & KI-Feintuning
+                            </span>
+                            <span class="text-[9px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">KI-TUNING</span>
+                        </h2>
+
+                        <!-- 1. KI-Feintuning: Language & Tone of Voice Dropdowns -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-700/80">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1 flex items-center justify-between">
+                                    <span>🌐 Sprache (Language)</span>
+                                </label>
+                                <select id="proposalLanguageSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                                    <option value="de" selected>🇩🇪 Deutsch</option>
+                                    <option value="en">🇬🇧 English</option>
+                                    <option value="id">🇮🇩 Bahasa Indonesia</option>
+                                    <option value="zh-CN">🇨🇳 简体中文 (Mandarin)</option>
+                                    <option value="zh-HK">🇭🇰 繁體中文 (Cantonese)</option>
+                                    <option value="ja">🇯🇵 日本語 (Japanese)</option>
+                                    <option value="fr">🇫🇷 Français</option>
+                                    <option value="es">🇪🇸 Español</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-300 mb-1 flex items-center justify-between">
+                                    <span>🎭 Tonfall (Tone of Voice)</span>
+                                </label>
+                                <select id="proposalToneSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                                    <option value="professional" selected>👔 Professionell & Überzeugend</option>
+                                    <option value="creative">🎨 Kreativ & Emotional</option>
+                                    <option value="direct">⚡ Direkt & Ergebnisorientiert</option>
+                                    <option value="technical">⚙️ Technisch & Präzise</option>
+                                    <option value="luxury">✨ Exklusiv & High-Ticket</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Fast Language Quick-Pills -->
+                        <div class="hidden" id="languageSelectorContainer">
+                            <button type="button" data-lang="de" class="lang-btn"></button>
+                            <button type="button" data-lang="en" class="lang-btn"></button>
+                            <button type="button" data-lang="fr" class="lang-btn"></button>
+                            <button type="button" data-lang="es" class="lang-btn"></button>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">📄 Dokumenten-Typ (Document Type)</label>
+                            <select id="documentTypeSelect" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer">
+                                <option value="proposal" selected>📋 Projekt-Angebot / Offerte</option>
+                                <option value="briefing">🔍 Briefing & Anforderungsanalyse</option>
+                                <option value="contract">⚖️ Dienstleistungsvertrag & SOW</option>
+                                <option value="roadmap">🗺️ Kickoff-Roadmap & Onboarding</option>
+                                <option value="signoff">✅ Projektabnahme & Protokoll</option>
+                                <option value="invoice">💳 Rechnung / Vorab-Rechnung</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Kundenname & Ansprechpartner</label>
+                            <input type="text" id="clientName" placeholder="z.B. Schmidt & Partner Steuerberatung"
+                                class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Projektart / Kategorie</label>
+                            <input type="text" id="projectCategory" value="Webdesign & WordPress Relaunch" placeholder="z.B. Webdesign & Website-Relaunch"
+                                class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label id="projectGoalsLabel" class="block text-[11px] font-medium text-slate-400">Projektziel & Stichpunkte</label>
+                                <span class="text-[10px] text-slate-500">Grobe Notizen genügen</span>
+                            </div>
+                            <textarea id="projectGoals" rows="4"
+                                placeholder="- Moderner Relaunch der Unternehmens-Website
+- Lead-Generierung für Neukunden & Kontaktformular
+- SEO-Grundoptimierung & Pagespeed unter 1.2s
+- Responsive Design für Mobile & Tablet
+- CMS-Schulung für Mitarbeiter nach Go-Live"
+                                class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none leading-relaxed"></textarea>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-[11px] font-medium text-blue-400 flex items-center gap-1.5 font-semibold">
+                                    <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                    </svg>
+                                    <span id="projectDeliverablesLabel">2. Leistungsumfang & Deliverables</span>
+                                </label>
+                                <span class="text-[10px] text-slate-400">Phasen & Pakete</span>
+                            </div>
+                            <textarea id="projectDeliverables" rows="4"
+                                placeholder="- Phase 1: Strategie, UX/UI Design & Wireframing
+- Phase 2: Technische Umsetzung, CMS & Pagespeed
+- Phase 3: SEO On-Page Optimierung & Conversion
+- Phase 4: Cross-Browser QA, Go-Live & Schulung"
+                                class="w-full bg-slate-900 border border-blue-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none leading-relaxed"></textarea>
+                            <p class="text-[10px] text-slate-400 mt-1">💡 Bestimme hier eigene Phasen/Deliverables – Gemini formuliert diese exakt im Angebot aus.</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Budget / Netto-Preis</label>
+                                <input type="text" id="projectBudget" placeholder="z.B. 4.850 €"
+                                    class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-medium text-slate-400 mb-1">Deadline / Zeitraum</label>
+                                <input type="text" id="projectDeadline" placeholder="z.B. 6 Wochen"
+                                    class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            </div>
+                        </div>
+
+                        <!-- FEATURE 2: Dynamic ROI Calculator Settings -->
+                        <div class="pt-3 border-t border-slate-800/80">
+                            <div class="flex items-center justify-between">
+                                <label for="enableRoiCalc" class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-200 select-none">
+                                    <span class="text-blue-400">📊</span>
+                                    <span>Dynamischer ROI-Kalkulator</span>
+                                </label>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-[9px] font-extrabold uppercase tracking-wider bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">PRO</span>
+                                    <input type="checkbox" id="enableRoiCalc" class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900 cursor-pointer">
+                                </div>
+                            </div>
+
+                            <div id="roiCalcConfigSection" class="hidden mt-3 p-3.5 bg-slate-900/90 border border-slate-800 rounded-xl space-y-3">
+                                <div>
+                                    <label class="block text-[10px] font-medium text-slate-400 mb-1">Kalkulator-Überschrift</label>
+                                    <input type="text" id="roiCalcTitle" value="Geschätzter Mehrumsatz & ROI-Rechner"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-medium text-slate-400 mb-1">Schieberegler-Label</label>
+                                        <input type="text" id="roiSliderLabel" value="Zusätzliche Neukunden / Monat"
+                                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-medium text-slate-400 mb-1">Einheit</label>
+                                        <input type="text" id="roiUnit" value="Kunden"
+                                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-medium text-slate-400 mb-1">Wert pro Einheit (€)</label>
+                                        <input type="number" id="roiBaseValue" value="500" min="1" step="10"
+                                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-medium text-slate-400 mb-1">Multiplikator (z.B. 12 Monate)</label>
+                                        <input type="number" id="roiMultiplier" value="12" min="1" max="60"
+                                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- FEATURE 4: Auto-Follow-Up Drip Campaign Toggle -->
+                        <div class="pt-2 border-t border-slate-800/80">
+                            <div class="flex items-center justify-between">
+                                <label for="enableAutoFollowUp" class="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-200 select-none">
+                                    <span class="text-emerald-400">✉️</span>
+                                    <span>Smarte 48h Follow-Up E-Mail</span>
+                                </label>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-[9px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/30">PRO</span>
+                                    <input type="checkbox" id="enableAutoFollowUp" checked class="w-4 h-4 rounded text-emerald-600 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1 pl-6">Erinnerung an den Kunden nach 48h, falls das Angebot angesehen aber noch nicht signiert wurde.</p>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Sticky Sidebar Footer -->
+                <div class="p-5 bg-slate-900 border-t border-slate-800 sticky bottom-0">
+                    <button id="generateBtn"
+                        class="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 hover:-translate-y-0.5 active:translate-y-0 focus:ring-4 focus:ring-blue-500/20 transition-all flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span>Angebot mit KI generieren</span>
+                    </button>
+                    <p class="text-[10px] text-center text-slate-500 mt-1.5">100% kostenlos ausprobieren & sofort ansehen</p>
+                </div>
+            </aside>
+
+
+            <!-- ================================================================= -->
+            <!-- 2. MAIN PREVIEW & BLURRED TEASER AREA                             -->
+            <!-- ================================================================= -->
+            <main class="flex-1 bg-slate-950 overflow-y-auto p-4 sm:p-8 lg:p-12 flex flex-col items-center relative">
+                
+                <!-- Action Bar above Document -->
+                <div class="w-full max-w-[840px] flex flex-wrap justify-between items-center gap-4 mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs text-slate-300">
+                            <span class="w-2 h-2 rounded-full bg-amber-400" id="statusDot"></span>
+                            <span id="statusText">Vorschau bereit</span>
+                        </div>
+                        
+                        <!-- FEATURE 3: Live Tracking Status Button -->
+                        <button id="openTrackingModalBtn"
+                            class="hidden bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-xs px-3 py-1.5 rounded-lg text-slate-300 transition-all flex items-center gap-2 group">
+                            <span class="relative flex h-2 w-2">
+                                <span id="trackingLivePing" class="hidden animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span id="trackingLiveDot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                            </span>
+                            <span id="trackingBtnText" class="group-hover:text-white">Live Tracking</span>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <button id="resetDocBtn" title="Auf Vorlage zurücksetzen"
+                            class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-medium py-2 px-3 rounded-lg transition-colors">
+                            Zurücksetzen
+                        </button>
+
+                        <!-- FEATURE 3: AI Deal Score Button -->
+                        <button id="openDealScoreBtn"
+                            class="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold py-2.5 px-4 rounded-lg shadow-lg shadow-purple-600/20 hover:shadow-purple-600/30 flex items-center gap-2 transition-all group">
+                            <svg class="w-4 h-4 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            <span>KI-Deal-Score</span>
+                            <span class="text-[9px] font-extrabold uppercase tracking-wider bg-slate-950/30 px-1.5 py-0.5 rounded text-purple-200 group-hover:bg-slate-950/50">PRO</span>
+                        </button>
+
+                        <!-- FEATURE 1: E-Sign Share Link Button -->
+                        <button id="publishESignBtn"
+                            class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold py-2.5 px-4 rounded-lg shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 flex items-center gap-2 transition-all group">
+                            <svg class="w-4 h-4 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                            </svg>
+                            <span>E-Sign Link</span>
+                            <span class="text-[9px] font-extrabold uppercase tracking-wider bg-slate-950/30 px-1.5 py-0.5 rounded text-emerald-200 group-hover:bg-slate-950/50">PRO</span>
+                        </button>
+                        
+                        <!-- PDF Export Button -->
+                        <button id="exportBtn"
+                            class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold py-2.5 px-5 rounded-lg shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 flex items-center gap-2 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            <span id="exportPdfBtnText">PDF herunterladen</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Document Box -->
+                <div class="w-full max-w-[840px] bg-white rounded-xl shadow-2xl relative transition-all duration-300 text-slate-800" id="documentWrapper">
+                    
+                    <!-- Loading Spinner Overlay -->
+                    <div id="loader" class="absolute inset-0 bg-white/90 backdrop-blur-sm z-40 flex flex-col items-center justify-center hidden rounded-xl">
+                        <div class="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                        <p class="text-sm font-semibold text-slate-900 font-display">KI formuliert dein Angebot...</p>
+                        <p class="text-xs text-slate-500 mt-1">Strukturiert Phasen, Deliverables & Budget</p>
+                    </div>
+
+                    <!-- Blurred Content Wrapper -->
+                    <div id="documentBlurWrapper" class="relative transition-all duration-500 rounded-xl overflow-hidden">
+                        
+                        <!-- FEATURE 5: The Exportable PDF Canvas (With Theme Class theme-modern-minimal) -->
+                        <div id="export-document" class="theme-modern-minimal p-10 sm:p-16 lg:p-20 min-h-[1050px] flex flex-col justify-between rounded-xl">
+                            
+                            <!-- Top Part -->
+                            <div>
+                                <!-- Header -->
+                                <header class="flex justify-between items-start border-b border-slate-200 pb-8 mb-8">
+                                    <div class="flex flex-col gap-3">
+                                        <img id="docLogo" src="" alt="Logo" class="max-h-12 max-w-[180px] hidden object-contain">
+                                        <div>
+                                            <h2 id="docAgency" class="text-xl font-bold text-slate-900 font-display tracking-tight">Deine Agentur</h2>
+                                            <p id="docEmail" class="text-xs text-slate-500 mt-0.5 font-sans">kontakt@agentur.de</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span id="docBadgeText" class="inline-block bg-blue-50 text-blue-700 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-md mb-2">Projektangebot</span>
+                                        <p class="text-xs text-slate-500"><span id="docDateLabel">Datum:</span> <strong id="docDate" class="text-slate-700 font-medium">01.01.2026</strong></p>
+                                        <p class="text-xs text-slate-400 mt-0.5"><span id="docNumberLabel">Angebots-Nr.:</span> <span id="docNumber">PG-2026-001</span></p>
+                                    </div>
+                                </header>
+
+                                <!-- Client Info Block -->
+                                <div class="mb-8 p-4 bg-slate-50 border border-slate-100 rounded-xl flex justify-between items-center">
+                                    <div>
+                                        <p id="docClientLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Erstellt für den Kunden</p>
+                                        <p id="docClient" class="text-base font-bold text-slate-900 font-display mt-0.5">Schmidt & Partner</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p id="docCategoryLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Projekt</p>
+                                        <p id="docCategory" class="text-xs font-semibold text-blue-600 mt-0.5">Webdesign & WordPress Relaunch</p>
+                                    </div>
+                                </div>
+
+                                <!-- Title of Document -->
+                                <h1 id="docHeading" class="text-2xl font-bold font-display text-slate-900 mb-6 tracking-tight">
+                                    Angebot: Konzept, Entwicklung & Umsetzung
+                                </h1>
+
+                                <!-- Proposal Body -->
+                                <div id="aiTextContent" contenteditable="true"
+                                    class="prose prose-slate max-w-none text-[14px] leading-relaxed text-slate-700 outline-none p-4 -ml-4 rounded-xl min-h-[350px]">
+                                    <p class="text-slate-400 italic">Trage links deine Projekt-Stichpunkte ein und klicke auf <strong>"Angebot mit KI generieren"</strong>. Das fertige Angebot erscheint sofort hier.</p>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Part -->
+                            <div class="mt-12 pt-8 border-t border-slate-200">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                        <p id="docTimelineLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Umsetzungszeitraum / Timeline</p>
+                                        <p id="docDeadline" class="text-base font-bold text-slate-900 mt-1">ca. 4-6 Wochen</p>
+                                    </div>
+                                    <div class="p-4 bg-blue-50/80 rounded-xl border border-blue-100 text-right sm:text-left">
+                                        <p id="docBudgetLabel" class="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Gesamtinvestition (Netto)</p>
+                                        <p id="docBudget" class="text-xl font-bold text-blue-700 font-display mt-1">4.850 €</p>
+                                    </div>
+                                </div>
+
+                                <div class="text-[11px] text-slate-400 flex justify-between items-center pt-4 border-t border-slate-100">
+                                    <span id="docValidityLabel">Gültigkeit: 14 Tage ab Angebotsdatum</span>
+                                    <span id="agencyOsWatermark" class="transition-colors">Erstellt mit AgencyOS</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Unlock Overlay -->
+                    <div id="unlockOverlay" class="absolute inset-0 z-30 flex items-center justify-center p-6 bg-slate-950/60 backdrop-blur-[6px] hidden opacity-0 transition-opacity duration-300 rounded-xl">
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-slate-100 text-center transform scale-95 transition-transform duration-300 relative">
+                            
+                            <!-- Modal Close Button -->
+                            <button type="button" id="closeUnlockModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors" title="Schließen">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+
+                            <div class="w-14 h-14 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/25">
+                                <svg class="w-7 h-7 text-white animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                            </div>
+
+                            <h3 class="text-2xl font-bold font-display text-white mb-2">Dein KI-Angebot ist fertig!</h3>
+                            <p class="text-xs text-slate-300 mb-5 leading-relaxed">
+                                Melde dich an oder erstelle einen kostenlosen Account, um den vollständigen Text zu sehen, ihn zu bearbeiten und als PDF zu exportieren.
+                            </p>
+
+                            <!-- Google Sign-In / Sign-Up Button -->
+                            <button type="button" id="googleAuthBtn"
+                                class="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 text-xs mb-4 cursor-pointer border border-slate-200">
+                                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                </svg>
+                                <span id="googleAuthBtnText">Mit Google fortfahren</span>
+                            </button>
+
+                            <!-- Divider -->
+                            <div class="relative flex py-1 items-center mb-4">
+                                <div class="flex-grow border-t border-slate-700/80"></div>
+                                <span class="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider">oder mit E-Mail</span>
+                                <div class="flex-grow border-t border-slate-700/80"></div>
+                            </div>
+
+                            <div class="flex bg-slate-800 p-1 rounded-xl mb-4 border border-slate-700/60">
+                                <button type="button" id="unlockTabSignup" class="flex-1 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all shadow-sm">
+                                    Kostenlos registrieren
+                                </button>
+                                <button type="button" id="unlockTabLogin" class="flex-1 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">
+                                    Anmelden
+                                </button>
+                            </div>
+
+                            <div id="unlockAlert" class="hidden mb-3 p-2.5 rounded-xl text-xs flex items-center justify-center gap-2"></div>
+
+                            <form id="unlockForm" class="space-y-3 text-left">
+                                <div id="unlockAgencyGroup">
+                                    <label class="block text-[11px] font-medium text-slate-400 mb-1">Agenturname (optional)</label>
+                                    <input type="text" id="unlockAgencyName" placeholder="z.B. Studio Nova"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-400 mb-1">E-Mail-Adresse</label>
+                                    <input type="email" id="unlockEmail" required placeholder="name@agentur.de"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-medium text-slate-400 mb-1">Passwort</label>
+                                    <input type="password" id="unlockPassword" required placeholder="••••••••" minlength="6"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+
+                                <button type="submit" id="unlockSubmitBtn"
+                                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-600/30 transition-all flex justify-center items-center gap-2 text-xs mt-2">
+                                    <span id="unlockSubmitText">Jetzt kostenlos freischalten</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                                    </svg>
+                                </button>
+                            </form>
+
+                            <p class="text-[10px] text-slate-500 mt-4">
+                                ✓ 100% kostenloser Test &nbsp;•&nbsp; Verantwortlich: <a href="https://reglerproductions.com" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline">Regler Productions</a> &nbsp;•&nbsp; <a href="https://reglerproductions.com/datenschutz.html" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline">Datenschutz</a> &nbsp;•&nbsp; <a href="https://reglerproductions.com/impressum.html" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline">Impressum</a> &nbsp;•&nbsp; <a href="https://reglerproductions.com/agb.html" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline">AGB</a>
+                            </p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="mt-8 pt-4 border-t border-slate-900 text-center flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>AgencyOS • Ein Dienst von <a href="https://reglerproductions.com" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-400 underline font-medium">Regler Productions</a> (Verantwortlicher Seitenbetreiber)</span>
+                    <div class="flex items-center gap-3 text-[11px] text-slate-500">
+                        <a href="https://reglerproductions.com" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">reglerproductions.com</a>
+                        <span>•</span>
+                        <a href="https://reglerproductions.com/datenschutz.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Datenschutz</a>
+                        <span>•</span>
+                        <a href="https://reglerproductions.com/impressum.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">Impressum</a>
+                        <span>•</span>
+                        <a href="https://reglerproductions.com/agb.html" target="_blank" rel="noopener noreferrer" class="hover:text-slate-300 transition-colors">AGB</a>
+                        <span>•</span>
+                        <span>SSL 256-Bit Encrypted</span>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 3. FEATURE 2: CRM & ZAPIER INTEGRATION MODAL                              -->
+    <!-- ========================================================================= -->
+    <div id="crmModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-xl w-full relative transform scale-95 transition-transform duration-300 text-slate-100 max-h-[90vh] overflow-y-auto">
+            
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold font-display text-white">CRM & Zapier Automationen</h3>
+                        <p class="text-xs text-slate-400">Verbinde AgencyOS mit Pipedrive, HubSpot, Make & Zapier</p>
+                    </div>
+                </div>
+                <button id="closeCrmModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Supported Tools Badge Row -->
+            <div class="flex flex-wrap items-center gap-2 mb-6 p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+                <span class="text-[11px] text-slate-400 font-medium mr-1">Kompatibel mit:</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-orange-500/10 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20">Zapier</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded border border-purple-500/20">Make.com</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">Pipedrive</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-orange-600/10 text-orange-300 px-2 py-0.5 rounded border border-orange-600/20">HubSpot</span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">Trello</span>
+            </div>
+
+            <form id="crmForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">
+                        Outbound Webhook URL (Zapier / Make / CRM)
+                    </label>
+                    <input type="url" id="crmWebhookUrl" placeholder="https://hooks.zapier.com/hooks/catch/..."
+                        class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono">
+                    <p class="text-[11px] text-slate-500 mt-1">
+                        Erstelle in Zapier oder Make einen "Catch Webhook"-Trigger und füge die URL hier ein.
+                    </p>
+                </div>
+
+                <!-- Event Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-2">Automatisierte Webhook-Ereignisse</label>
+                    <div class="space-y-2">
+                        <label class="flex items-start gap-2.5 p-2.5 bg-slate-800/40 border border-slate-700/60 rounded-xl cursor-pointer hover:bg-slate-800/70 transition-colors">
+                            <input type="checkbox" id="evtProposalSigned" checked class="mt-0.5 rounded text-orange-500 focus:ring-orange-500 bg-slate-900 border-slate-700">
+                            <div>
+                                <span class="text-xs font-semibold text-white block">Angebot signiert (Deal Won) <span class="text-[10px] text-emerald-400 font-normal ml-1">Empfohlen für CRM Pipeline</span></span>
+                                <span class="text-[11px] text-slate-400 block mt-0.5">Verschiebt Deals in Pipedrive/HubSpot auf "Won" und übergibt Kundendaten & Netto-Budget.</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2.5 p-2.5 bg-slate-800/40 border border-slate-700/60 rounded-xl cursor-pointer hover:bg-slate-800/70 transition-colors">
+                            <input type="checkbox" id="evtProposalViewed" class="mt-0.5 rounded text-orange-500 focus:ring-orange-500 bg-slate-900 border-slate-700">
+                            <div>
+                                <span class="text-xs font-semibold text-white block">Angebot geöffnet (First View)</span>
+                                <span class="text-[11px] text-slate-400 block mt-0.5">Sendet sofort eine Slack- oder E-Mail-Benachrichtigung beim ersten Aufruf durch den Kunden.</span>
+                            </div>
+                        </label>
+
+                        <label class="flex items-start gap-2.5 p-2.5 bg-slate-800/40 border border-slate-700/60 rounded-xl cursor-pointer hover:bg-slate-800/70 transition-colors">
+                            <input type="checkbox" id="evtProposalCreated" class="mt-0.5 rounded text-orange-500 focus:ring-orange-500 bg-slate-900 border-slate-700">
+                            <div>
+                                <span class="text-xs font-semibold text-white block">Angebot erstellt (Deal Created)</span>
+                                <span class="text-[11px] text-slate-400 block mt-0.5">Erstellt eine neue Karte im Kanban-Board / CRM bei Veröffentlichung.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Test Webhook Button & Status -->
+                <div class="bg-slate-800/30 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-white">Verbindung prüfen</p>
+                        <p class="text-[11px] text-slate-400" id="crmTestStatusText">Sende ein Test-Ereignis an deinen Webhook.</p>
+                    </div>
+                    <button type="button" id="crmTestWebhookBtn"
+                        class="bg-slate-800 hover:bg-slate-750 border border-slate-700 text-orange-400 hover:text-orange-300 text-xs font-semibold px-3.5 py-2 rounded-lg transition-all flex items-center gap-1.5 shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Test senden</span>
+                    </button>
+                </div>
+
+                <!-- Sample JSON Payload Accordion -->
+                <details class="bg-slate-800/20 border border-slate-800 rounded-xl text-xs overflow-hidden">
+                    <summary class="p-3 font-semibold text-slate-300 cursor-pointer hover:text-white flex justify-between items-center select-none">
+                        <span>Beispiel-Payload (JSON Struktur für Zapier Feld-Mapping)</span>
+                        <span class="text-slate-500 text-[10px]">Anzeigen</span>
+                    </summary>
+                    <div class="p-3 pt-0">
+                        <pre class="bg-slate-950 p-3 rounded-lg text-[10px] text-emerald-400 font-mono overflow-x-auto border border-slate-800">
+{
+  "event": "proposal.signed",
+  "data": {
+    "deal": {
+      "proposalId": "prop_12345",
+      "status": "won",
+      "clientName": "Schmidt & Partner",
+      "category": "Webdesign & Relaunch",
+      "budget": "4.850 €",
+      "signedBy": "Max Mustermann",
+      "signedAt": "2026-08-02T01:10:00Z"
+    }
+  }
+}</pre>
+                    </div>
+                </details>
+
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" id="cancelCrmBtn" class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-white rounded-xl">Abbrechen</button>
+                    <button type="submit" id="saveCrmBtn" class="px-5 py-2.5 text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white rounded-xl shadow-lg shadow-orange-600/30">Webhook speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 4. FEATURE 1: E-SIGN SHARE LINK MODAL                                     -->
+    <!-- ========================================================================= -->
+    <div id="eSignShareModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full relative transform scale-95 transition-transform duration-300 text-slate-100">
+            
+            <div class="flex justify-between items-center mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold font-display text-white">E-Sign Link bereit</h3>
+                        <p class="text-xs text-slate-400">Teile diesen Link mit deinem Kunden zur digitalen Signatur</p>
+                    </div>
+                </div>
+                <button id="closeESignModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="relative">
+                    <label class="block text-[11px] font-medium text-slate-400 mb-1">Verschlüsselter Zugriffslink für den Kunden</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="eSignShareUrlInput" readonly
+                            class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-emerald-400 font-mono select-all focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        
+                        <button type="button" id="copyShareUrlBtn"
+                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-md shadow-emerald-600/20 shrink-0 transition-all flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                            <span id="copyShareBtnText">Kopieren</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-2 text-xs text-slate-300">
+                    <div class="flex items-center gap-2 text-emerald-400 font-medium">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                        <span>Echtzeit-Tracking & Rechtsgültiger Audit-Trail</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                        Sobald dein Kunde den Link öffnet oder das Angebot unterschreibt, wirst du in Echtzeit über das Live-Tracking Dashboard und verbundene CRMs informiert.
+                    </p>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <a id="openShareUrlLink" href="#" target="_blank"
+                        class="flex-1 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-colors text-center flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                        <span>Als Kunde öffnen</span>
+                    </a>
+
+                    <button type="button" id="doneESignModalBtn"
+                        class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors">
+                        Fertig
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 5. FEATURE 3: REAL-TIME PROPOSAL TRACKING MODAL                           -->
+    <!-- ========================================================================= -->
+    <div id="trackingModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full relative transform scale-95 transition-transform duration-300 text-slate-100">
+            
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold font-display text-white">Live Proposal Tracking</h3>
+                        <p class="text-xs text-slate-400">Echtzeit-Aktivität und Lese-Analytics deines Kunden</p>
+                    </div>
+                </div>
+                <button id="closeTrackingModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+
+            <div id="analyticsLiveStatusCard" class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-4 mb-6 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="relative flex h-3.5 w-3.5">
+                        <span id="modalLivePing" class="hidden animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span id="modalLiveDot" class="relative inline-flex rounded-full h-3.5 w-3.5 bg-slate-500"></span>
+                    </span>
+                    <div>
+                        <p id="modalLiveStatusTitle" class="text-xs font-bold text-white">Wartet auf ersten Aufruf</p>
+                        <p id="modalLiveStatusSubtitle" class="text-[11px] text-slate-400">Der Kunde hat den Link noch nicht geöffnet.</p>
+                    </div>
+                </div>
+                <button id="refreshAnalyticsBtn" title="Aktualisieren" class="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-750 rounded-lg transition-all">
+                    <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-6">
+                <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-4 text-center">
+                    <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Aufrufe gesamt</span>
+                    <span id="metricViewCount" class="text-2xl font-extrabold font-display text-white">0</span>
+                    <span class="text-[10px] text-slate-500 block mt-0.5">Sessions</span>
+                </div>
+
+                <div class="bg-slate-800/50 border border-slate-800 rounded-xl p-4 text-center">
+                    <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Aktive Lesezeit</span>
+                    <span id="metricDuration" class="text-2xl font-extrabold font-display text-blue-400">0s</span>
+                    <span class="text-[10px] text-slate-500 block mt-0.5">Fokussierte Zeit</span>
+                </div>
+            </div>
+
+            <div class="space-y-2.5 bg-slate-800/30 border border-slate-800 rounded-xl p-4 text-xs mb-6">
+                <div class="flex justify-between items-center text-slate-300">
+                    <span class="text-slate-500">Erster Aufruf:</span>
+                    <span id="detailFirstViewed" class="font-medium">-</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-300">
+                    <span class="text-slate-500">Zuletzt aktiv:</span>
+                    <span id="detailLastViewed" class="font-medium">-</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-300 pt-2 border-t border-slate-800">
+                    <span class="text-slate-500">Signaturstatus:</span>
+                    <span id="detailSignStatus" class="font-bold text-amber-400">Offen</span>
+                </div>
+            </div>
+
+            <button type="button" id="closeTrackingBtn2"
+                class="w-full bg-slate-800 hover:bg-slate-750 text-slate-200 text-xs font-semibold py-2.5 rounded-xl transition-colors">
+                Schließen
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 6. STRIPE PAYWALL MODAL                                                   -->
+    <!-- ========================================================================= -->
+    <div id="paywallModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 max-w-md w-full relative transform scale-95 transition-transform duration-300 text-slate-100">
+            
+            <div class="flex items-center justify-between mb-6">
+                <div class="w-12 h-12 bg-gradient-to-tr from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                    <svg class="w-6 h-6 text-slate-950 font-bold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <span class="text-xs font-bold uppercase tracking-wider bg-amber-400/10 text-amber-400 px-3 py-1 rounded-full border border-amber-400/20">
+                    Pro Mitgliedschaft
+                </span>
+            </div>
+
+            <h3 id="paywallTitle" class="text-2xl font-bold font-display text-white mb-2">Limit erreicht</h3>
+            <p id="paywallDescription" class="text-sm text-slate-300 mb-6 leading-relaxed">
+                Dein kostenloses Angebot ist aufgebraucht. Upgrade auf Pro (29€/Monat), um ab sofort jede Woche Stunden an administrativer Arbeit zu sparen.
+            </p>
+
+            <div class="space-y-3 mb-8 bg-slate-800/60 p-4 rounded-xl border border-slate-700/60 text-xs">
+                <div class="flex items-center gap-2.5 text-slate-200">
+                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span><strong>E-Sign, CRM-Webhooks & Live-Tracking</strong></span>
+                </div>
+                <div class="flex items-center gap-2.5 text-slate-200">
+                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span><strong>3 Design-Themes & Nischen-Vorlagen</strong></span>
+                </div>
+                <div class="flex items-center gap-2.5 text-slate-200">
+                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span><strong>4 Sprachen</strong> (DE, EN, FR, ES)</span>
+                </div>
+                <div class="flex items-center gap-2.5 text-slate-200">
+                    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <span><strong>Unbegrenzte</strong> Angebote & PDF-Exporte</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center justify-between mb-6">
+                <button id="billingCycleMonthly" type="button" class="flex-1 text-center py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all">
+                    Monatlich (29 €)
+                </button>
+                <button id="billingCycleYearly" type="button" class="hidden" aria-hidden="true" tabindex="-1">
+                    Jährliche Abrechnung ist derzeit nicht verfügbar.
+                </button>
+            </div>
+
+            <div class="flex items-baseline justify-between mb-6 px-1">
+                <div>
+                    <span id="paywallPriceValue" class="text-3xl font-extrabold font-display text-white">29 €</span>
+                    <span id="paywallPricePeriod" class="text-xs text-slate-400"> / Monat (zzgl. MwSt.)</span>
+                </div>
+                <span class="text-[11px] text-emerald-400 font-medium">Sofortiger Zugriff</span>
+            </div>
+
+            <!-- Legals Checkbox -->
+            <div class="flex items-start gap-2.5 mb-5 select-none text-[11px] text-slate-400 leading-tight">
+                <input id="paywallAcceptLegals" type="checkbox" class="mt-0.5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/30">
+                <label for="paywallAcceptLegals" class="text-slate-400">
+                    Ich akzeptiere die <a href="https://reglerproductions.com/agb.html" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">AGB</a> und habe die <a href="https://reglerproductions.com/datenschutz.html" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Datenschutzerklärung</a> sowie die <a href="https://reglerproductions.com/agb.html#widerruf" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">Widerrufsbelehrung</a> zur Kenntnis genommen.
+                </label>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <button id="upgradeBtn" disabled
+                    class="w-full bg-slate-700 text-slate-400 cursor-not-allowed font-bold py-3.5 rounded-xl transition-all flex justify-center items-center gap-2 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    <span>Upgrade auf Pro freischalten</span>
+                </button>
+
+                <button id="closePaywallBtn"
+                    class="w-full text-slate-400 hover:text-slate-200 text-xs font-medium py-2.5 rounded-xl transition-colors">
+                    Vielleicht später
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 7. ACCOUNT-, PROFIL- & ABRECHNUNGS-EINSTELLUNGEN                          -->
+    <!-- ========================================================================= -->
+    <div id="profileModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-xl w-full text-slate-100 max-h-[90vh] flex flex-col">
+            
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold font-display text-white">Account & Einstellungen</h3>
+                        <p class="text-xs text-slate-400" id="profileModalSubtitle">Verwalte deine Stammdaten, dein Pro-Abonnement & Rechnungen</p>
+                    </div>
+                </div>
+                <button id="closeProfileModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none px-2">&times;</button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="flex gap-2 border-b border-slate-800 pt-3 pb-2 text-xs font-semibold shrink-0 overflow-x-auto">
+                <button type="button" id="tabBtnProfile" class="px-3.5 py-1.5 rounded-lg bg-slate-800 text-blue-400 border border-slate-700 transition-all flex items-center gap-1.5 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m12-10a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <span>Stammdaten</span>
+                </button>
+                <button type="button" id="tabBtnBranding" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent transition-all flex items-center gap-1.5 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                    </svg>
+                    <span>White-Labeling & Domain</span>
+                    <span class="text-[9px] font-extrabold bg-blue-500/20 text-blue-300 px-1 py-0.2 rounded">PRO</span>
+                </button>
+                <button type="button" id="tabBtnBilling" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent transition-all flex items-center gap-1.5 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                    </svg>
+                    <span>Abo & Rechnungen</span>
+                </button>
+                <button type="button" id="tabBtnDanger" class="px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent transition-all flex items-center gap-1.5 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    <span>Account löschen</span>
+                </button>
+            </div>
+
+            <!-- Tab Contents Scroll Area -->
+            <div class="flex-1 overflow-y-auto pt-4 pr-1">
+
+                <!-- TAB 1: Agentur-Stammdaten -->
+                <div id="tabContentProfile" class="space-y-4">
+                    <form id="profileForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Agenturname / Freelancer-Name</label>
+                            <input type="text" id="modalAgencyName" placeholder="z.B. PixelStudio Design" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Kontakt-E-Mail</label>
+                                <input type="email" id="modalAgencyEmail" placeholder="kontakt@agentur.de" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Telefon / Website</label>
+                                <input type="text" id="modalAgencyPhone" placeholder="+49 123 45678" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Anschrift & Steuernummer (für Fußzeile)</label>
+                            <input type="text" id="modalAgencyAddress" placeholder="Musterstraße 12, 10115 Berlin | USt-ID: DE123456789" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div class="pt-2 flex justify-end gap-3">
+                            <button type="button" id="cancelProfileBtn" class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-white rounded-xl">Abbrechen</button>
+                            <button type="submit" id="saveProfileBtn" class="px-5 py-2.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-1.5">
+                                <span>Stammdaten speichern</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- TAB: 100% White-Labeling & Custom Domain (Feature 1) -->
+                <div id="tabContentBranding" class="space-y-4 hidden">
+                    <div class="bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-slate-900 border border-blue-500/30 rounded-xl p-4">
+                        <div class="flex items-center gap-2.5 text-blue-400 font-bold text-xs mb-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                            </svg>
+                            <span>100% Agentur-Modus & Custom Domain</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 leading-relaxed">
+                            Binde deine eigene Subdomain an (z.B. <code class="text-blue-300 font-mono bg-blue-900/30 px-1 py-0.5 rounded">angebote.agentur.de</code>), passe deine Markenfarbe an und entferne sämtliche AgencyOS-Hinweise für deine Kunden.
+                        </p>
+                    </div>
+
+                    <form id="brandingForm" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">Eigene Subdomain (Custom Domain)</label>
+                            <input type="text" id="modalCustomDomain" placeholder="angebote.meine-agentur.de"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                            
+                            <!-- CNAME Setup Guide Accordion -->
+                            <div class="mt-2 p-3 bg-slate-850 border border-slate-700/60 rounded-xl text-[11px] space-y-1.5">
+                                <p class="font-semibold text-slate-300 flex items-center gap-1.5">
+                                    <span>🌐 DNS CNAME-Einrichtung:</span>
+                                </p>
+                                <div class="font-mono text-[10px] text-slate-400 bg-slate-900 p-2 rounded border border-slate-800 space-y-0.5">
+                                    <div><strong class="text-slate-300">Typ:</strong> CNAME</div>
+                                    <div><strong class="text-slate-300">Name / Host:</strong> angebote (oder Subdomain)</div>
+                                    <div><strong class="text-slate-300">Wert / Target:</strong> cname.agencyos.com</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Primäre Markenfarbe</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="modalBrandColorPicker" value="#2563eb"
+                                        class="w-9 h-9 rounded-lg border border-slate-700 bg-slate-800 cursor-pointer p-0.5">
+                                    <input type="text" id="modalBrandColor" value="#2563eb" placeholder="#2563eb"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">Agentur-Logo URL</label>
+                                <input type="url" id="modalBrandLogoUrl" placeholder="https://agentur.de/logo.png"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+
+                        <!-- White-Labeling Checkbox -->
+                        <div class="p-3 bg-slate-800/80 border border-slate-700 rounded-xl flex items-start gap-3">
+                            <input type="checkbox" id="modalHideBranding" class="w-4 h-4 mt-0.5 rounded text-blue-600 bg-slate-900 border-slate-700 focus:ring-blue-500 focus:ring-offset-slate-900 cursor-pointer">
+                            <label for="modalHideBranding" class="text-xs text-slate-300 cursor-pointer select-none">
+                                <strong class="text-white block font-semibold">"Powered by AgencyOS" entfernen</strong>
+                                <span class="text-[11px] text-slate-400">Versteckt alle AgencyOS-Badges und Fußzeilen in Kundenansichten und E-Mails.</span>
+                            </label>
+                        </div>
+
+                        <div class="pt-2 flex justify-end gap-3">
+                            <button type="button" id="cancelBrandingBtn" class="px-4 py-2.5 text-xs font-medium text-slate-400 hover:text-white rounded-xl">Abbrechen</button>
+                            <button type="submit" id="saveBrandingBtn" class="px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-1.5">
+                                <span>Branding & Domain speichern</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- TAB 2: Abo & Abrechnung (Stripe Customer Portal) -->
+                <div id="tabContentBilling" class="space-y-4 hidden">
+                    <!-- Current Plan Status Card -->
+                    <div class="bg-gradient-to-br from-slate-800/90 to-slate-850 border border-slate-700 rounded-xl p-5">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Aktueller Tarif</span>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <h4 id="profilePlanTitle" class="text-lg font-bold text-white font-display">AgencyOS Kostenlos</h4>
+                                    <span id="profilePlanBadge" class="text-[10px] font-extrabold bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">FREE</span>
+                                </div>
+                            </div>
+                            <div id="profilePlanIcon" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div id="profilePlanDetails" class="mt-4 pt-3 border-t border-slate-750 text-xs text-slate-400 space-y-1.5">
+                            <div class="flex justify-between">
+                                <span>Status:</span>
+                                <span id="profilePlanStatus" class="font-medium text-slate-200">Aktiv</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Account E-Mail:</span>
+                                <span id="profileAccountEmail" class="font-mono text-slate-300">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stripe Customer Portal Action Card -->
+                    <div class="bg-slate-850 border border-slate-800 rounded-xl p-4 space-y-3">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h5 class="text-xs font-bold text-white">Stripe Self-Service Kundenportal</h5>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    Im offiziellen Stripe Portal kannst du deine Rechnungen als PDF herunterladen, Kreditkarten & Zahlungsmethoden aktualisieren oder dein Abonnement flexibel kündigen.
+                                </p>
+                            </div>
+                        </div>
+
+                        <button type="button" id="openStripePortalBtn" class="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                            <span>Abo & Rechnungen im Stripe Portal verwalten</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 3: Gefahrenzone & DSGVO-Account-Löschung -->
+                <div id="tabContentDanger" class="space-y-4 hidden">
+                    <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-xs text-red-300 space-y-2">
+                        <div class="flex items-center gap-2 text-red-400 font-bold">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <span>DSGVO-konforme Account-Löschung (Zero-Ghost-Billing)</span>
+                        </div>
+                        <p class="text-slate-300 text-[11px] leading-relaxed">
+                            Wenn du deinen Account löschst, werden folgende Aktionen unwiderruflich und sofort ausgeführt:
+                        </p>
+                        <ul class="list-disc list-inside text-[11px] text-slate-400 space-y-1">
+                            <li><strong class="text-white">Sofortige Abo-Kündigung bei Stripe:</strong> Laufende Zahlungen werden sofort gestoppt (Zero-Ghost-Billing).</li>
+                            <li><strong class="text-white">Vollständige Datenlöschung:</strong> Alle gespeicherten Angebote, Analytics und Stammdaten werden aus Firestore gelöscht.</li>
+                            <li><strong class="text-white">Firebase Auth Login:</strong> Dein Login-Konto wird dauerhaft entfernt.</li>
+                        </ul>
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="button" id="triggerDeleteAccountModalBtn" class="w-full py-2.5 px-4 bg-red-600/90 hover:bg-red-600 text-white font-bold text-xs rounded-xl shadow-md shadow-red-600/20 transition-all flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                            <span>Account & alle Daten dauerhaft löschen</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 7b. DELETE ACCOUNT CONFIRMATION MODAL                                     -->
+    <!-- ========================================================================= -->
+    <div id="deleteAccountConfirmModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-60 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-red-500/30 rounded-2xl shadow-2xl p-6 sm:p-7 max-w-md w-full text-slate-100 relative">
+            <div class="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+
+            <h3 class="text-lg font-bold font-display text-white text-center">Bist du absolut sicher?</h3>
+            <p class="text-xs text-slate-400 text-center mt-2 leading-relaxed">
+                Diese Aktion kann <span class="text-red-400 font-semibold">nicht rückgängig gemacht werden</span>. Alle deine Angebote, Kundendaten und dein Stripe-Abonnement werden restlos gelöscht.
+            </p>
+
+            <div class="mt-6 flex flex-col gap-2.5">
+                <button type="button" id="confirmDeleteAccountBtn" class="w-full py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-600/30 transition-all flex items-center justify-center gap-2">
+                    <span id="deleteAccountBtnText">Ja, Account jetzt unwiderruflich löschen</span>
+                    <div id="deleteAccountSpinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                </button>
+                <button type="button" id="cancelDeleteAccountBtn" class="w-full py-2 px-4 bg-slate-800 hover:bg-slate-750 text-slate-300 font-medium text-xs rounded-xl border border-slate-700 transition-colors">
+                    Abbrechen, ich möchte meinen Account behalten
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- 8. FEATURE 3: PROPOSALS DASHBOARD & TRACKING OVERVIEW MODAL               -->
+    <!-- ========================================================================= -->
+    <div id="dashboardModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] flex flex-col text-slate-100 relative transform scale-95 transition-transform duration-300">
+            
+            <div class="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold font-display text-white">Angebots-Dashboard & Live-Tracking</h3>
+                        <p class="text-xs text-slate-400">Übersicht aller erstellten Angebote, Aufrufe, Lesezeiten und digitaler Unterschriften</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="refreshDashboardBtn" title="Aktualisieren" class="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                    <button id="closeDashboardModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none px-2">&times;</button>
+                </div>
+            </div>
+
+            <!-- Proposals Table / Container -->
+            <div class="flex-1 overflow-y-auto my-4 pr-1">
+                <div id="dashboardLoading" class="py-12 text-center text-slate-400">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mb-3"></div>
+                    <p class="text-xs">Lade Angebote aus Firestore...</p>
+                </div>
+
+                <div id="dashboardEmptyState" class="hidden py-12 text-center text-slate-400 space-y-2">
+                    <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500 mb-2">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-white">Noch keine Angebote gespeichert</p>
+                    <p class="text-xs text-slate-400 max-w-sm mx-auto">Klicke im Editor auf <strong>"E-Sign Link"</strong> oder <strong>"Angebot speichern"</strong>, um Angebote mit Magic Links an Kunden zu versenden.</p>
+                </div>
+
+                <div id="dashboardTableContainer" class="hidden overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-800/80 text-[11px] uppercase font-bold text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Kunde / Projekt</th>
+                                <th class="py-3 px-3">Budget</th>
+                                <th class="py-3 px-3">Status</th>
+                                <th class="py-3 px-3">Auto-Follow-Up</th>
+                                <th class="py-3 px-3">Aufrufe</th>
+                                <th class="py-3 px-3">Lesezeit</th>
+                                <th class="py-3 px-3">Erstellt</th>
+                                <th class="py-3 px-4 text-right">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardTableBody" class="divide-y divide-slate-800/60 font-medium">
+                            <!-- Dynamically populated via script.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 shrink-0">
+                <span id="dashboardSummaryText">0 Angebote gelistet</span>
+                <button type="button" id="closeDashboardModalBottomBtn" class="px-5 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-white rounded-xl transition-colors">
+                    Schließen
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 9. FEATURE 3: KI-DEAL-SCORING & COACHING DASHBOARD MODAL                  -->
+    <!-- ========================================================================= -->
+    <div id="dealScoreModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] flex flex-col text-slate-100 relative transform scale-95 transition-transform duration-300">
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center pb-4 border-b border-slate-800 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-purple-600/10 border border-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-xl font-bold font-display text-white">KI-Deal-Scoring & Abschluss-Analyse</h3>
+                            <span class="text-[9px] font-extrabold uppercase tracking-wider bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">GEMINI 1.5 PRO</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Echtzeit-Bewertung deiner Abschlusswahrscheinlichkeit & konkrete Optimierungstipps</p>
+                    </div>
+                </div>
+                <button id="closeDealScoreModalBtn" class="text-slate-400 hover:text-white text-2xl leading-none px-2">&times;</button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="dealScoreLoading" class="py-16 text-center text-slate-400">
+                <div class="w-12 h-12 border-4 border-slate-700 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
+                <p class="text-sm font-semibold text-white">Gemini analysiert dein Angebot...</p>
+                <p class="text-xs text-slate-500 mt-1">Berechne Nutzenargumentation, Preispsychologie & Abschlussstärke</p>
+            </div>
+
+            <!-- Content Area (Score & Insights) -->
+            <div id="dealScoreContent" class="flex-1 overflow-y-auto my-4 pr-1 space-y-6 hidden">
+                
+                <!-- Score Hero Card with Circular Gauge -->
+                <div class="bg-gradient-to-br from-slate-850 to-slate-900 border border-purple-500/20 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <!-- Gauge SVG -->
+                    <div class="relative w-32 h-32 flex items-center justify-center shrink-0">
+                        <svg class="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="48" stroke="currentColor" stroke-width="10" fill="transparent" class="text-slate-800" />
+                            <circle id="dealScoreCircle" cx="60" cy="60" r="48" stroke="url(#scoreGradient)" stroke-width="10" stroke-linecap="round" fill="transparent" stroke-dasharray="301.6" stroke-dashoffset="301.6" class="transition-all duration-1000 ease-out" />
+                            <defs>
+                                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#a855f7" />
+                                    <stop offset="50%" stop-color="#6366f1" />
+                                    <stop offset="100%" stop-color="#10b981" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span id="dealScoreValue" class="text-3xl font-extrabold text-white font-display">0</span>
+                            <span class="text-[10px] uppercase font-bold text-slate-400">Score / 100</span>
+                        </div>
+                    </div>
+
+                    <!-- Score Text & Probability -->
+                    <div class="flex-1 text-center sm:text-left space-y-2">
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" id="dealWinProbabilityBadge">
+                            <span>🎯</span>
+                            <span id="dealWinProbabilityText">Abschlusschance: Sehr Hoch</span>
+                        </div>
+                        <h4 id="dealHeadlineVerdict" class="text-base font-bold text-white font-display">Hervorragendes Angebot mit hoher Überzeugungskraft</h4>
+                        <p id="dealSummaryVerdict" class="text-xs text-slate-300 leading-relaxed">
+                            Das Angebot überzeugt durch klare Leistungsphasen und starke Mehrwert-Formulierungen. Mit kleinen Verfeinerungen beim Call-to-Action kann die Conversion noch weiter gesteigert werden.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 4 Category Breakdown Bars -->
+                <div class="bg-slate-850/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <h5 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Detail-Bewertung nach Kategorien</h5>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <!-- Metric 1 -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px]">
+                                <span class="text-slate-400">💎 Nutzenargumentation</span>
+                                <span id="dealMetricValueClarity" class="font-bold text-slate-200">85%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="dealBarValueClarity" class="h-full bg-blue-500 rounded-full transition-all duration-700" style="width: 85%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 2 -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px]">
+                                <span class="text-slate-400">🏷️ Preis- & Leistungsstärke</span>
+                                <span id="dealMetricPricingPower" class="font-bold text-slate-200">80%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="dealBarPricingPower" class="h-full bg-indigo-500 rounded-full transition-all duration-700" style="width: 80%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 3 -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px]">
+                                <span class="text-slate-400">🛡️ Risikominimierung & Vertrauen</span>
+                                <span id="dealMetricRiskReduction" class="font-bold text-slate-200">75%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="dealBarRiskReduction" class="h-full bg-teal-500 rounded-full transition-all duration-700" style="width: 75%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Metric 4 -->
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px]">
+                                <span class="text-slate-400">⚡ Verbindlichkeit & Call-to-Action</span>
+                                <span id="dealMetricCtaStrength" class="font-bold text-slate-200">90%</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                <div id="dealBarCtaStrength" class="h-full bg-purple-500 rounded-full transition-all duration-700" style="width: 90%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insights: Strengths, Weaknesses, Recommendations -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Strengths Card -->
+                    <div class="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-4 space-y-2">
+                        <div class="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            <span>Stärken des Angebots</span>
+                        </div>
+                        <ul id="dealStrengthsList" class="space-y-1 text-[11px] text-slate-300">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+
+                    <!-- Weaknesses Card -->
+                    <div class="bg-amber-950/20 border border-amber-500/20 rounded-xl p-4 space-y-2">
+                        <div class="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <span>Abschluss-Bremsen & Potenziale</span>
+                        </div>
+                        <ul id="dealWeaknessesList" class="space-y-1 text-[11px] text-slate-300">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Actionable Coaching Advice -->
+                <div class="bg-purple-950/20 border border-purple-500/30 rounded-xl p-4 space-y-2">
+                    <div class="flex items-center gap-2 text-purple-400 font-bold text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span>🚀 Konkrete Coaching-Tipps zur Conversion-Steigerung</span>
+                    </div>
+                    <ul id="dealRecommendationsList" class="space-y-1.5 text-[11px] text-slate-300">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400 shrink-0">
+                <span class="text-[11px]">KI-Deal-Scoring Engine v2.0</span>
+                <button type="button" id="closeDealScoreModalBottomBtn" class="px-5 py-2 text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-md shadow-purple-600/30 transition-all">
+                    Verstanden & Schließen
+                </button>
+    <!-- DSGVO Cookie & Consent Banner -->
+    <div id="dsgvoCookieBanner" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 p-5 rounded-2xl shadow-2xl z-50 transition-all duration-300 hidden">
+        <div class="flex items-start gap-3.5">
+            <div class="p-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-xl shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 002-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white mb-1">Datenschutz & Cookies</h4>
+                <p class="text-xs text-slate-300 leading-relaxed mb-3">
+                    Wir nutzen essenzielle LocalStorage-Daten & technisch notwendige Cookies für Authentifizierung, E-Sign-Sicherheit und anonymisierte Analytics nach DSGVO Art. 6 Abs. 1 lit. f.
+                </p>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="acceptDsgvoCookiesBtn" class="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl shadow-md transition-all">
+                        Einverstanden
+                    </button>
+                    <button type="button" id="openPrivacySettingsBtn" class="px-3 py-2 text-xs text-slate-400 hover:text-white transition-colors">
+                        Einstellungen
+                    </button>
+                    <a href="https://reglerproductions.com/datenschutz.html" target="_blank" rel="noopener noreferrer" class="px-3 py-2 text-xs text-slate-400 hover:text-white transition-colors">
+                        Datenschutz
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dedicated Privacy Settings Modal -->
+    <div id="privacySettingsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-60 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full text-slate-100 relative">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 002-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold font-display text-white">Datenschutzeinstellungen</h3>
+                        <p class="text-[11px] text-slate-400">DSGVO Art. 15, 17 & 20</p>
+                    </div>
+                </div>
+                <button id="closePrivacySettingsBtn" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            
+            <div class="space-y-4 mt-4">
+                <!-- Data Export -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Datenexport (Recht auf Datenübertragbarkeit)
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-1 mb-3">Lade eine Kopie aller mit deinem Account verknüpften Daten im JSON-Format herunter.</p>
+                    <button id="exportDataBtn" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                        <span>Daten exportieren (JSON)</span>
+                        <div id="exportDataSpinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    </button>
+                </div>
+                
+                <!-- Account Deletion -->
+                <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                    <h4 class="text-sm font-bold text-red-400 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Account löschen (Recht auf Vergessenwerden)
+                    </h4>
+                    <p class="text-xs text-red-300 mt-1 mb-3">Lösche deinen Account, alle Angebote und dein Stripe-Abonnement unwiderruflich von unseren Servern.</p>
+                    <button id="privacyDeleteAccountBtn" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg transition-colors">
+                        Account dauerhaft löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legal / Kündigungsbutton (German Law) -->
+    <div class="fixed bottom-4 left-4 z-40">
+        <button id="cancelSubscriptionBtn" class="px-4 py-2 text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg shadow-lg transition-all hidden">
+            Verträge hier kündigen
+        </button>
+    </div>
+
+    <section class="marketing-discovery" aria-labelledby="productInfoTitle">
+        <div class="marketing-wrap">
+            <nav class="marketing-languages" aria-label="Sprache auswählen">
+                <span>Sprache:</span>
+                <a href="/" lang="de" aria-current="page">Deutsch</a>
+                <a href="/en/" lang="en">English</a>
+                <a href="/fr/" lang="fr">Français</a>
+                <a href="/es/" lang="es">Español</a>
+                <a href="/id/" lang="id">Bahasa Indonesia</a>
+                <a href="/zh-hans/" lang="zh-Hans">简体中文</a>
+                <a href="/zh-hant/" lang="zh-Hant">繁體中文</a>
+                <a href="/ja/" lang="ja">日本語</a>
+            </nav>
+
+            <header class="marketing-hero">
+                <p class="marketing-eyebrow">Angebotssoftware für Dienstleister</p>
+                <h1 id="productInfoTitle">KI-Angebotssoftware für Agenturen und Freelancer</h1>
+                <p class="marketing-lead">AgencyOS ist eine browserbasierte Anwendung, mit der Selbstständige und Agenturen aus Projekt-Notizen strukturierte Kundenangebote und Geschäftsdokumente erstellen, bearbeiten und als PDF exportieren können.</p>
+                <a class="marketing-cta" href="#appWorkspace">Angebot jetzt erstellen</a>
+            </header>
+
+            <section aria-labelledby="howItWorksTitle">
+                <h2 id="howItWorksTitle">So erstellen Sie ein Kundenangebot</h2>
+                <ol class="marketing-steps">
+                    <li><strong>Projekt beschreiben:</strong> Tragen Sie Kunde, Projektziele, gewünschte Leistungen, Budget und Zeitrahmen ein oder wählen Sie eine passende Vorlage.</li>
+                    <li><strong>Entwurf erstellen und prüfen:</strong> AgencyOS formuliert daraus einen bearbeitbaren Dokumententwurf. Prüfen Sie Inhalte, Preise, Termine und Vertragsklauseln vor dem Versand.</li>
+                    <li><strong>Exportieren und freigeben:</strong> Laden Sie das Dokument als PDF herunter. Mit den entsprechenden Pro-Funktionen können Sie Freigabe-Links und E-Signatur nutzen.</li>
+                </ol>
+            </section>
+
+            <section aria-labelledby="documentTypesTitle">
+                <h2 id="documentTypesTitle">Welche Dokumente kann AgencyOS erstellen?</h2>
+                <p>Wählen Sie in der Anwendung den passenden Dokumenttyp für Ihren Kundenprozess:</p>
+                <ul class="marketing-list">
+                    <li>Projektangebote und Leistungsbeschreibungen</li>
+                    <li>Projekt-Briefings und Anforderungsanalysen</li>
+                    <li>Dienstleistungsverträge und Leistungsbeschreibungen (SOW)</li>
+                    <li>Projekt-Roadmaps und Onboarding-Unterlagen</li>
+                    <li>Abnahmeprotokolle und Rechnungen</li>
+                </ul>
+                <p>Die Vorlagen decken typische Aufgaben von Webdesign-, SEO-, E-Commerce-, Branding- und Software-Agenturen sowie Freelancern ab. Sie können die Texte vor dem Export selbst anpassen.</p>
+            </section>
+
+            <section aria-labelledby="languagesTitle">
+                <h2 id="languagesTitle">Dokumente in mehreren Sprachen</h2>
+                <p>Für den erzeugten Dokumenttext können Sie Deutsch, Englisch, Bahasa Indonesia, vereinfachtes oder traditionelles Chinesisch, Japanisch, Französisch und Spanisch auswählen. Die Produktoberfläche ist derzeit auf Deutsch verfügbar.</p>
+            </section>
+
+            <section class="marketing-faq" aria-labelledby="faqTitle">
+                <h2 id="faqTitle">Häufige Fragen zu AgencyOS</h2>
+                <details>
+                    <summary>Kann ich AgencyOS ohne Registrierung ausprobieren?</summary>
+                    <p>Ja. Der Gastmodus lässt Sie ein Dokument kostenlos erstellen, bevor Sie ein Konto anlegen.</p>
+                </details>
+                <details>
+                    <summary>Kann ich die KI-generierten Angebote bearbeiten?</summary>
+                    <p>Ja. Ergänzen und prüfen Sie Kundendaten, Projektziele, Leistungen, Budget und Zeitplan, bevor Sie das Dokument exportieren oder teilen.</p>
+                </details>
+                <details>
+                    <summary>Kann ich ein Angebot digital unterschreiben lassen?</summary>
+                    <p>Freigabe-Links und E-Signatur sind Pro-Funktionen. Prüfen Sie das fertige Dokument vor der Freigabe auf korrekte Leistungs-, Preis- und Vertragsangaben.</p>
+                </details>
+                <details>
+                    <summary>Ersetzt ein KI-Entwurf eine rechtliche oder fachliche Prüfung?</summary>
+                    <p>Nein. Ein KI-Entwurf ist eine Arbeitshilfe. Prüfen Sie fachliche Angaben, Preise, Fristen und rechtliche Bestimmungen selbst, bevor Sie ihn an Kunden senden.</p>
+                </details>
+            </section>
+
+            <footer class="marketing-footer">
+                <span>AgencyOS von Regler Productions</span>
+                <span><a href="/impressum.html">Impressum</a> · <a href="/datenschutz.html">Datenschutz</a> · <a href="/agb.html">AGB</a></span>
+            </footer>
+        </div>
+    </section>
+
+    <!-- Support Bot Chat UI -->
+    <div id="supportBotContainer" class="fixed bottom-4 right-4 z-50 flex flex-col items-end">
+        <!-- Chat Window -->
+        <div id="supportChatWindow" class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl mb-4 w-80 h-96 flex-col hidden overflow-hidden">
+            <div class="bg-blue-600 p-3 text-white font-bold flex justify-between items-center">
+                <span class="flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    AgencyOS Support
+                </span>
+                <button id="closeSupportChatBtn" class="text-white hover:text-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="supportChatMessages" class="flex-1 p-3 overflow-y-auto flex flex-col gap-3 bg-slate-900 text-sm">
+                <!-- Messages will appear here -->
+                <div class="bg-slate-800 border border-slate-700 text-slate-200 p-2.5 rounded-lg rounded-tl-none self-start max-w-[85%]">
+                    Hallo! Ich bin der AgencyOS Support-Bot. Wie kann ich dir helfen?
+                </div>
+            </div>
+            <div class="p-3 bg-slate-800 border-t border-slate-700 flex gap-2">
+                <input type="text" id="supportChatInput" class="flex-1 bg-slate-900 border border-slate-700 text-white text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Frage stellen...">
+                <button id="supportChatSendBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Toggle Button -->
+        <button id="toggleSupportChatBtn" class="w-12 h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center transition-transform hover:scale-110">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+        </button>
+    </div>
+
+</body>
+</html>
