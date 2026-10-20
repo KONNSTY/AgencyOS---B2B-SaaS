@@ -69,7 +69,7 @@ const locales = [
         title: 'Créateur de devis IA pour agences et freelances | AgencyOS',
         description: 'Transformez vos notes de projet en propositions et documents professionnels modifiables avec AgencyOS. Relisez le contenu et exportez un PDF.',
         eyebrow: 'Outil de devis pour les prestataires',
-        h1: 'Logiciel de propositions IA pour agences et freelances',
+        h1: 'Logiciel de devis et de propositions commerciales avec IA',
         lead: 'AgencyOS est une application Web qui transforme les notes d’un projet en propositions commerciales et autres documents professionnels modifiables, exportables en PDF.',
         navLabel: 'Choisir la langue', cta: 'Créer un document',
         howTitle: 'Comment préparer une proposition client',
