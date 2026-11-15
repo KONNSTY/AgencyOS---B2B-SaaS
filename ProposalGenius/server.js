@@ -17,11 +17,29 @@ const helmet = require('helmet');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { doubleVerificationMiddleware, PPP_TIERS } = require('./locationVerification');
-const { sendEmail, sendPaymentFailedEmail, sendAccountDeletedEmail, sendFollowUpEmail, sendProposalSignedConfirmation, sendWelcomeEmail, sendSubscriptionConfirmedEmail } = require('./emailService');
+const { doubleVerificationMiddleware } = require('./locationVerification');
+const { sendPaymentFailedEmail, sendAccountDeletedEmail, sendFollowUpEmail, sendProposalSignedConfirmation, sendWelcomeEmail, sendSubscriptionConfirmedEmail } = require('./emailService');
 const { startCronEngine, triggerSingleProposalFollowUp } = require('./cronService');
-const dns = require('dns').promises;
-const net = require('net');
+const {
+    escapeHtml,
+    sanitizeProposalHtml,
+    isSafeHexColor,
+    isSafeImageUrl,
+    parsePngDataUrl,
+    isTrustedStripeUrl
+} = require('./public/htmlSanitize');
+const {
+    clientIp,
+    tokensMatch,
+    normalizeDocumentType,
+    isFollowUpEnabled,
+    clipText,
+    agencyPriceIds,
+    subscriptionIncludesAgencyPrice,
+    invoiceIncludesAgencyPrice,
+    validateOutboundUrl,
+    safeOutboundFetch
+} = require('./securityUtils');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -96,13 +114,7 @@ const memoryWebhooks = new Map();
 // =============================================================================
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
-const AGENCY_OS_PRICE_IDS = new Set([
-    process.env.AGENCY_OS_PRICE_EUR_MONTHLY,
-    process.env.AGENCY_OS_PRICE_USD_MONTHLY,
-    process.env.AGENCY_OS_PRICE_IDR_MONTHLY,
-    process.env.AGENCY_OS_PRICE_SGD_MONTHLY,
-    process.env.AGENCY_OS_PRICE_AUD_MONTHLY
-].filter(Boolean));
+const AGENCY_OS_PRICE_IDS = agencyPriceIds();
 
 if (isProduction) {
     const missingStripeConfig = [];
@@ -163,6 +175,8 @@ const apiLimiter = rateLimit({
     message: { error: 'Too many requests from this IP, please try again after 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => rateLimit.ipKeyGenerator(clientIp(req) || 'unknown'),
+    validate: { xForwardedForHeader: false }
 });
 app.use('/api/', apiLimiter);
 
@@ -171,6 +185,8 @@ const supportChatLimiter = rateLimit({
     max: 30,
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: (req) => rateLimit.ipKeyGenerator(clientIp(req) || 'unknown'),
+    validate: { xForwardedForHeader: false },
     message: { error: 'SUPPORT_RATE_LIMITED' }
 });
 
@@ -183,9 +199,8 @@ const customDomainMap = new Map();
  */
 const customDomainMiddleware = async (req, res, next) => {
     try {
-        const rawHost = (req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0].toLowerCase();
-        const queryDomain = req.query.customDomain ? String(req.query.customDomain).toLowerCase() : null;
-        const targetHost = queryDomain || rawHost;
+        const rawHost = String(req.headers.host || '').split(':')[0].toLowerCase();
+        const targetHost = rawHost;
 
         if (targetHost && targetHost !== 'localhost' && targetHost !== '127.0.0.1' && !targetHost.includes('agencyos') && !targetHost.includes('proposalgenius') && !targetHost.includes('onrender') && !targetHost.includes('vercel')) {
             let branding = customDomainMap.get(targetHost);
@@ -199,14 +214,8 @@ const customDomainMiddleware = async (req, res, next) => {
                 if (!snapshot.empty) {
                     const uData = snapshot.docs[0].data();
                     if (hasActiveProEntitlement(uData)) {
-                        branding = {
-                            userId: snapshot.docs[0].id,
-                            agencyName: uData.agencyName || 'Agentur',
-                            brandLogoUrl: uData.brandLogoUrl || '',
-                            brandPrimaryColor: uData.brandPrimaryColor || '#2563eb',
-                            hideBranding: uData.hideBranding !== false,
-                            customDomain: targetHost
-                        };
+                        branding = publicBranding(uData);
+                        branding.customDomain = targetHost;
                         customDomainMap.set(targetHost, branding);
                     }
                 }
@@ -330,13 +339,21 @@ function firestoreTimestamp(date) {
 }
 
 function configuredAgencyPriceIds() {
-    return new Set([
-        process.env.AGENCY_OS_PRICE_EUR_MONTHLY,
-        process.env.AGENCY_OS_PRICE_USD_MONTHLY,
-        process.env.AGENCY_OS_PRICE_IDR_MONTHLY,
-        process.env.AGENCY_OS_PRICE_SGD_MONTHLY,
-        process.env.AGENCY_OS_PRICE_AUD_MONTHLY
-    ].filter(Boolean));
+    return agencyPriceIds();
+}
+
+function appBaseUrl() {
+    const configured = String(process.env.BASE_URL || '').trim().replace(/\/$/, '');
+    if (configured) {
+        try {
+            const url = new URL(configured);
+            const localDev = !isProduction && url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+            if (url.protocol === 'https:' || localDev) return url.origin;
+        } catch {
+            // Ignore an unusable BASE_URL and fall back to the canonical origin.
+        }
+    }
+    return isProduction ? 'https://agencyos.com' : 'http://localhost:3000';
 }
 
 function priceForCountry(country) {
@@ -348,42 +365,6 @@ function priceForCountry(country) {
         ID: process.env.AGENCY_OS_PRICE_IDR_MONTHLY
     };
     return priceByCountry[code] || process.env.AGENCY_OS_PRICE_EUR_MONTHLY;
-}
-
-function isPrivateAddress(address) {
-    const normalized = String(address || '').toLowerCase();
-    if (normalized === 'localhost' || normalized === '::1' || normalized.endsWith('.local')) return true;
-    if (net.isIPv4(normalized)) {
-        const octets = normalized.split('.').map(Number);
-        return octets[0] === 10
-            || octets[0] === 127
-            || (octets[0] === 169 && octets[1] === 254)
-            || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-            || (octets[0] === 192 && octets[1] === 168);
-    }
-    return net.isIPv6(normalized)
-        && (normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80'));
-}
-
-async function validateOutboundUrl(rawUrl, { allowHttp = false } = {}) {
-    let parsed;
-    try {
-        parsed = new URL(String(rawUrl || '').trim());
-    } catch {
-        throw new Error('Ungültige Webhook-URL.');
-    }
-    if (!['https:', ...(allowHttp && !isProduction ? ['http:'] : [])].includes(parsed.protocol)) {
-        throw new Error('Webhook-URLs müssen HTTPS verwenden.');
-    }
-    if (parsed.username || parsed.password || parsed.port === '0') {
-        throw new Error('Webhook-URL enthält nicht erlaubte Verbindungsdaten.');
-    }
-    if (isPrivateAddress(parsed.hostname)) throw new Error('Private oder lokale Webhook-Ziele sind nicht erlaubt.');
-    const addresses = await dns.lookup(parsed.hostname, { all: true });
-    if (!addresses.length || addresses.some(entry => isPrivateAddress(entry.address))) {
-        throw new Error('Webhook-Ziel konnte nicht sicher validiert werden.');
-    }
-    return parsed.toString();
 }
 
 async function claimStripeEvent(eventId) {
@@ -408,6 +389,24 @@ async function releaseStripeEvent(eventId) {
 // =============================================================================
 // 4. STRIPE WEBHOOK LISTENER
 // =============================================================================
+async function ownedStripeCustomerId(userId) {
+    if (!db || !stripe || !userId) return null;
+    const userDoc = await db.collection('users').doc(userId).get();
+    const customerId = userDoc.exists ? userDoc.data().stripeCustomerId : null;
+    if (typeof customerId !== 'string' || !customerId.startsWith('cus_')) return null;
+    const customer = await stripe.customers.retrieve(customerId);
+    if (!customer || customer.deleted) return null;
+    if (customer.metadata?.userId && customer.metadata.userId !== userId) return null;
+    return customerId;
+}
+
+async function invoiceAffectsAgency(invoice) {
+    if (invoiceIncludesAgencyPrice(invoice)) return true;
+    if (!stripe || !invoice?.subscription) return false;
+    const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+    return subscriptionIncludesAgencyPrice(subscription);
+}
+
 async function usersForStripeCustomer(customerId) {
     if (!db || !customerId) return [];
     const snapshot = await db.collection('users').where('stripeCustomerId', '==', customerId).get();
@@ -425,15 +424,20 @@ async function writeAgencyProductAccess(userId, data) {
 
 async function applySubscriptionState(subscription, overrides = {}) {
     if (!db || !subscription?.customer) return;
+    const users = await usersForStripeCustomer(subscription.customer);
+    const relevant = subscriptionIncludesAgencyPrice(subscription);
+    const matchedUsers = users.filter(doc => relevant || doc.data().stripeSubscriptionId === subscription.id);
+    if (!matchedUsers.length || (!relevant && !matchedUsers.some(doc => doc.data().stripeSubscriptionId === subscription.id))) return;
+    if (!relevant) {
+        overrides = { ...overrides, status: 'canceled', accessUntil: overrides.accessUntil || new Date() };
+    }
 
     const periodEnd = periodEndFromStripeObject(subscription);
     const status = String(overrides.status || subscription.status || 'active').toLowerCase();
     const accessUntil = overrides.accessUntil || periodEnd;
     const hasAccess = ['active', 'trialing', 'past_due'].includes(status)
         && accessUntil.getTime() > Date.now();
-    const users = await usersForStripeCustomer(subscription.customer);
-
-    for (const doc of users) {
+    for (const doc of matchedUsers) {
         const profileUpdate = {
             isPro: hasAccess,
             plan: hasAccess ? 'agencyos_pro' : 'free',
@@ -524,8 +528,8 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
         }
         event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
     } catch (err) {
-        console.error(`❌ Stripe Webhook Signatur-Fehler: ${err.message}`);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
+        console.error('❌ Stripe Webhook Signatur-Fehler.');
+        return res.status(400).send('Webhook Error');
     }
 
     console.log(`🔔 Stripe Webhook Event: ${event.type}`);
@@ -564,6 +568,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 
             case 'invoice.payment_failed': {
                 const invoice = event.data.object;
+                if (!(await invoiceAffectsAgency(invoice))) break;
                 const customerId = invoice.customer;
                 const hostedInvoiceUrl = invoice.hosted_invoice_url || '';
                 let customerEmail = invoice.customer_email || '';
@@ -610,6 +615,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 
             case 'invoice.payment_succeeded': {
                 const invoice = event.data.object;
+                if (!(await invoiceAffectsAgency(invoice))) break;
                 const customerId = invoice.customer;
                 if (stripe && invoice.subscription) {
                     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
@@ -640,6 +646,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 
             case 'invoice.paid': {
                 const invoice = event.data.object;
+                if (!(await invoiceAffectsAgency(invoice))) break;
                 if (stripe && invoice.subscription) {
                     const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
                     await applySubscriptionState(subscription, { status: 'active' });
@@ -703,13 +710,98 @@ function profileDefaults(user) {
     };
 }
 
-function publicProfile(data, user) {
+function cleanRoiCalculatorInput(roiCalculator) {
+    if (!roiCalculator || !roiCalculator.enabled) return null;
+    const numberOr = (value, fallback) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
     return {
-        ...data,
-        uid: data.uid || user.uid,
-        email: data.email || user.email || '',
-        isPro: hasActiveProEntitlement(data),
-        brandColor: data.brandColor || data.brandPrimaryColor || '#2563eb'
+        enabled: true,
+        title: clipText(roiCalculator.title || 'Geschätzter Mehrumsatz & ROI-Rechner', 160),
+        description: clipText(roiCalculator.description || 'Passe den Schieberegler an:', 300),
+        sliderLabel: clipText(roiCalculator.sliderLabel || 'Zusätzliche Kunden / Monat', 120),
+        min: numberOr(roiCalculator.min, 1),
+        max: numberOr(roiCalculator.max, 50),
+        step: numberOr(roiCalculator.step, 1),
+        defaultValue: numberOr(roiCalculator.defaultValue, 10),
+        unit: clipText(roiCalculator.unit || 'Kunden', 40),
+        baseValue: numberOr(roiCalculator.baseValue, 500),
+        multiplier: numberOr(roiCalculator.multiplier, 12),
+        resultLabel: clipText(roiCalculator.resultLabel || 'Geschätzter jährlicher Mehrertrag', 160),
+        resultPrefix: clipText(roiCalculator.resultPrefix || 'ca. ', 20),
+        resultSuffix: clipText(roiCalculator.resultSuffix || ' € / Jahr', 40)
+    };
+}
+
+function publicBranding(userData = {}, proposal = {}) {
+    const brandColor = isSafeHexColor(userData.brandPrimaryColor) ? userData.brandPrimaryColor
+        : (isSafeHexColor(userData.brandColor) ? userData.brandColor : '#2563eb');
+    const logo = isSafeImageUrl(userData.brandLogoUrl) ? userData.brandLogoUrl
+        : (isSafeImageUrl(proposal.logoUrl) ? proposal.logoUrl : '');
+    return {
+        agencyName: userData.agencyName || proposal.agencyName || 'Agentur',
+        brandLogoUrl: logo,
+        brandPrimaryColor: brandColor,
+        hideBranding: userData.hideBranding !== false,
+        customDomain: userData.customDomain || ''
+    };
+}
+
+function publicProposal(proposal) {
+    const signature = proposal.signature ? {
+        signerName: proposal.signature.signerName || '',
+        signerRole: proposal.signature.signerRole || '',
+        signedAt: proposal.signature.signedAt || null,
+        ipAddress: /^[0-9a-f:.]+$/i.test(String(proposal.signature.ipAddress || '')) ? proposal.signature.ipAddress : '',
+        dataUrl: parsePngDataUrl(proposal.signature.dataUrl)
+    } : null;
+    return {
+        id: proposal.id || proposal.proposalId,
+        proposalId: proposal.proposalId || proposal.id,
+        language: proposal.language || 'de',
+        documentType: normalizeDocumentType(proposal.documentType),
+        theme: proposal.theme || 'modern-minimal',
+        clientName: proposal.clientName || '',
+        category: proposal.category || '',
+        budget: proposal.budget || '',
+        deadline: proposal.deadline || '',
+        agencyName: proposal.agencyName || '',
+        agencyEmail: proposal.agencyEmail || '',
+        logoUrl: isSafeImageUrl(proposal.logoUrl) ? proposal.logoUrl : '',
+        proposalHTML: sanitizeProposalHtml(proposal.proposalHTML),
+        roiCalculator: proposal.roiCalculator || null,
+        status: proposal.status || 'pending',
+        createdAt: proposal.createdAt || null,
+        signedAt: proposal.signedAt || null,
+        signature
+    };
+}
+
+function publicProfile(data, user) {
+    const source = data || {};
+    const brandColor = isSafeHexColor(source.brandColor) ? source.brandColor
+        : (isSafeHexColor(source.brandPrimaryColor) ? source.brandPrimaryColor : '#2563eb');
+    return {
+        uid: source.uid || user.uid,
+        email: source.email || user.email || '',
+        displayName: source.displayName || '',
+        photoURL: isSafeImageUrl(source.photoURL) ? source.photoURL : '',
+        isPro: hasActiveProEntitlement(source),
+        plan: source.plan === 'agencyos_pro' && hasActiveProEntitlement(source) ? 'agencyos_pro' : 'free',
+        subscriptionStatus: source.subscriptionStatus || 'none',
+        freeProposalsUsed: Number(source.freeProposalsUsed || 0),
+        freeProposalsUsedByDocType: source.freeProposalsUsedByDocType || {},
+        agencyName: source.agencyName || '',
+        agencyEmail: source.agencyEmail || '',
+        agencyPhone: source.agencyPhone || '',
+        agencyAddress: source.agencyAddress || '',
+        logoUrl: isSafeImageUrl(source.logoUrl) ? source.logoUrl : '',
+        brandLogoUrl: isSafeImageUrl(source.brandLogoUrl) ? source.brandLogoUrl : '',
+        brandPrimaryColor: brandColor,
+        brandColor,
+        hideBranding: source.hideBranding === true,
+        customDomain: source.customDomain || ''
     };
 }
 
@@ -921,7 +1013,7 @@ async function dispatchOutboundWebhook(userId, eventName, payload) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
 
-        const response = await fetch(safeUrl, {
+        const response = await safeOutboundFetch(safeUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -930,6 +1022,7 @@ async function dispatchOutboundWebhook(userId, eventName, payload) {
             body: JSON.stringify(webhookPayload),
             signal: controller.signal
         });
+        await response.body?.cancel?.().catch(() => {});
 
         clearTimeout(timeout);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -944,44 +1037,87 @@ async function dispatchOutboundWebhook(userId, eventName, payload) {
 // 6. HARDENED API ENDPUNKTE (FEATURE 4: i18n MULTI-LANGUAGE GENERATOR)
 // =============================================================================
 
+async function reserveFreeDocument(userId, documentType) {
+    if (!db) {
+        const error = new Error('QUOTA_BACKEND_UNAVAILABLE');
+        error.code = 'QUOTA_BACKEND_UNAVAILABLE';
+        throw error;
+    }
+
+    const userRef = db.collection('users').doc(userId);
+    await db.runTransaction(async (tx) => {
+        const snap = await tx.get(userRef);
+        const data = snap.exists ? snap.data() : null;
+        if (data && hasActiveProEntitlement(data)) return;
+
+        const used = Number(data?.freeProposalsUsedByDocType?.[documentType] || 0);
+        if (used >= 1) {
+            const error = new Error('PAYWALL_LIMIT_REACHED');
+            error.code = 'PAYWALL_LIMIT_REACHED';
+            throw error;
+        }
+
+        const update = {
+            freeProposalsUsed: admin.firestore.FieldValue.increment(1),
+            lastExportAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        update[`freeProposalsUsedByDocType.${documentType}`] = admin.firestore.FieldValue.increment(1);
+        if (!snap.exists) {
+            tx.set(userRef, {
+                ...profileDefaults({ uid: userId }),
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                ...update
+            });
+        } else {
+            tx.set(userRef, update, { merge: true });
+        }
+    });
+}
+
 app.post('/api/generate', verifyFirebaseAuth, requireAuth, async (req, res) => {
     try {
-        const { clientName, projectGoals, deliverables, category, budget, deadline, agencyName, agencyEmail, language = 'de', tone = 'professional', documentType = 'proposal' } = req.body;
+        const {
+            clientName,
+            projectGoals,
+            deliverables,
+            category,
+            budget,
+            deadline,
+            agencyName,
+            agencyEmail,
+            language = 'de',
+            tone = 'professional'
+        } = req.body || {};
+        const documentType = normalizeDocumentType(req.body?.documentType);
 
         if (!clientName || !projectGoals) {
             return res.status(400).json({ error: 'Kundenname und Projektziele sind erforderlich.' });
         }
+        if (String(clientName).length > 200 || String(projectGoals).length > 8000 || String(deliverables || '').length > 8000) {
+            return res.status(400).json({ error: 'INPUT_TOO_LARGE' });
+        }
 
-        // Zero-Risk Quota Check (Type-Specific: 1 document of each type for Free tier)
-        if (req.user && req.user.uid && db) {
-            try {
-                const userDoc = await db.collection('users').doc(req.user.uid).get();
-
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    const isPro = hasActiveProEntitlement(userData);
-                    const totalFreeUsed = userData.freeProposalsUsed || 0;
-
-                    if (!isPro && totalFreeUsed >= 1) {
-                        const docTypeNames = {
-                            proposal: 'Angebot',
-                            briefing: 'Briefing',
-                            contract: 'Vertrag',
-                            roadmap: 'Roadmap',
-                            signoff: 'Abnahme',
-                            invoice: 'Rechnung'
-                        };
-                        const currentName = docTypeNames[documentType] || 'Angebot';
-                        console.log(`🛑 [Zero-Risk Block] User ${req.user.uid} hat Free-Limit für ${documentType} erreicht. LLM-Call abgebrochen.`);
-                        return res.status(403).json({
-                            error: 'PAYWALL_LIMIT_REACHED',
-                            message: `Dein kostenloses ${currentName} ist aufgebraucht. Upgrade auf Pro (29€/Monat), um ab sofort unbegrenzt Dokumente zu generieren.`
-                        });
-                    }
-                }
-            } catch (quotaErr) {
-                console.warn('⚠️ [Firestore Quota Check Warning] Konnte Quota nicht in Firestore abfragen:', quotaErr.message);
+        try {
+            await reserveFreeDocument(req.user.uid, documentType);
+        } catch (quotaErr) {
+            if (quotaErr.code === 'PAYWALL_LIMIT_REACHED') {
+                const docTypeNames = {
+                    proposal: 'Angebot',
+                    briefing: 'Briefing',
+                    contract: 'Vertrag',
+                    roadmap: 'Roadmap',
+                    signoff: 'Abnahme',
+                    invoice: 'Rechnung'
+                };
+                const currentName = docTypeNames[documentType] || 'Angebot';
+                return res.status(403).json({
+                    error: 'PAYWALL_LIMIT_REACHED',
+                    message: `Dein kostenloses ${currentName} ist aufgebraucht. Upgrade auf Pro (29€/Monat), um ab sofort unbegrenzt Dokumente zu generieren.`
+                });
             }
+            console.error('❌ [Quota] Kontingentprüfung fehlgeschlagen.');
+            return res.status(503).json({ error: 'QUOTA_BACKEND_UNAVAILABLE' });
         }
 
         const bulletPoints = String(projectGoals).split('\n').filter(line => line.trim().length > 0);
@@ -1097,8 +1233,8 @@ ${docStructureGuide}`;
                 const result = await model.generateContent(prompt);
                 let text = result.response.text();
                 text = text.replace(/^```html\s*/i, '').replace(/\s*```$/i, '').replace(/```/g, '').trim();
-                generatedHTML = text;
-                console.log(`✨ [Gemini AI] Erfolgreich individuelles Dokument (${documentType}) generiert für: ${safeClientName} (${language}, Tonfall: ${tone})`);
+                generatedHTML = sanitizeProposalHtml(text);
+                console.log(`✨ [Gemini AI] Erfolgreich individuelles Dokument (${documentType}) generiert (${language}, Tonfall: ${tone})`);
             } catch (geminiError) {
                 console.warn('⚠️ [Gemini AI Fallback] Gemini API Fehler, nutze Vorlagen-Engine:', geminiError.message);
                 generatedHTML = buildI18nDocumentHTML(documentType, language, {
@@ -1127,31 +1263,9 @@ ${docStructureGuide}`;
             });
         }
 
-        // Zero-Risk Quota Increment (for Free tier users)
-        if (req.user && req.user.uid && db) {
-            try {
-                const userRef = db.collection('users').doc(req.user.uid);
-                const userDoc = await userRef.get();
-                if (userDoc.exists) {
-                    const userData = userDoc.data();
-                    if (!hasActiveProEntitlement(userData)) {
-                        const updatePayload = {
-                            freeProposalsUsed: admin.firestore.FieldValue.increment(1),
-                            lastExportAt: admin.firestore.FieldValue.serverTimestamp()
-                        };
-                        updatePayload[`freeProposalsUsedByDocType.${documentType}`] = admin.firestore.FieldValue.increment(1);
-                        await userRef.update(updatePayload);
-                        console.log(`📊 [Quota] Generation atomar erhöht für Free-User: ${req.user.uid} (Typ: ${documentType})`);
-                    }
-                }
-            } catch (err) {
-                console.warn('⚠️ [Quota Update Warning] Konnte Quota nach Generation nicht inkrementieren:', err.message);
-            }
-        }
-
         res.json({
             success: true,
-            html: generatedHTML,
+            html: sanitizeProposalHtml(generatedHTML),
             language: language,
             tone: tone,
             category: safeCategory,
@@ -1160,7 +1274,7 @@ ${docStructureGuide}`;
 
     } catch (error) {
         console.error('❌ [LLM Error] Fehler bei der Dokumentenerstellung:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -1553,7 +1667,7 @@ app.post('/api/track-export', verifyFirebaseAuth, requireAuth, async (req, res) 
         res.json({ success: true });
     } catch (error) {
         console.error('❌ Fehler beim Export-Tracking:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -1579,54 +1693,40 @@ async function handleSaveProposal(req, res) {
             }
         }
 
-        const {
-            clientName,
-            clientEmail = '',
-            category = 'Projekt-Dokument',
-            budget = 'Nach Vereinbarung',
-            deadline = 'ca. 4-6 Wochen',
-            agencyName = 'Agentur',
-            agencyEmail = '',
-            proposalHTML,
-            logoUrl = '',
-            language = 'de',
-            tone = 'professional',
-            theme = 'modern-minimal',
-            roiCalculator = null,
-            autoFollowUp = true,
-            documentType = 'proposal'
-        } = req.body;
+        const body = req.body || {};
+        const clientName = clipText(body.clientName, 200);
+        const clientEmail = clipText(body.clientEmail, 254);
+        const category = clipText(body.category || 'Projekt-Dokument', 200);
+        const budget = clipText(body.budget || 'Nach Vereinbarung', 80);
+        const deadline = clipText(body.deadline || 'ca. 4-6 Wochen', 80);
+        const agencyName = clipText(body.agencyName || 'Agentur', 160);
+        const agencyEmail = clipText(body.agencyEmail, 254);
+        const proposalHTML = sanitizeProposalHtml(body.proposalHTML);
+        const logoUrl = isSafeImageUrl(body.logoUrl) ? String(body.logoUrl).trim() : '';
+        const language = clipText(body.language || 'de', 12).toLowerCase();
+        const tone = clipText(body.tone || 'professional', 32).toLowerCase();
+        const theme = clipText(body.theme || 'modern-minimal', 40).toLowerCase();
+        const roiCalculator = body.roiCalculator;
+        const followUpsOn = isFollowUpEnabled(body.autoFollowUp);
+        const documentType = normalizeDocumentType(body.documentType);
 
         if (!clientName || !proposalHTML) {
             return res.status(400).json({ error: 'Kundenname und Dokumenteninhalt sind erforderlich.' });
         }
+        if (clientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail)) {
+            return res.status(400).json({ error: 'CLIENT_EMAIL_INVALID' });
+        }
+        if (agencyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(agencyEmail)) {
+            return res.status(400).json({ error: 'AGENCY_EMAIL_INVALID' });
+        }
 
         const proposalId = 'prop_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
         const securityToken = crypto.randomBytes(24).toString('hex');
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = appBaseUrl();
         const shareUrl = `${baseUrl}/view.html?id=${proposalId}&token=${securityToken}`;
         const nowIso = new Date().toISOString();
 
-        // Sanitize ROI Calculator object if enabled
-        let cleanRoiCalculator = null;
-        if (roiCalculator && roiCalculator.enabled) {
-            cleanRoiCalculator = {
-                enabled: true,
-                title: escapeHtml(roiCalculator.title || 'Geschätzter Mehrumsatz & ROI-Rechner'),
-                description: escapeHtml(roiCalculator.description || 'Passe den Schieberegler an:'),
-                sliderLabel: escapeHtml(roiCalculator.sliderLabel || 'Zusätzliche Kunden / Monat'),
-                min: Number(roiCalculator.min) || 1,
-                max: Number(roiCalculator.max) || 50,
-                step: Number(roiCalculator.step) || 1,
-                defaultValue: Number(roiCalculator.defaultValue) || 10,
-                unit: escapeHtml(roiCalculator.unit || 'Kunden'),
-                baseValue: Number(roiCalculator.baseValue) || 500,
-                multiplier: Number(roiCalculator.multiplier) || 12,
-                resultLabel: escapeHtml(roiCalculator.resultLabel || 'Geschätzter jährlicher Mehrertrag'),
-                resultPrefix: escapeHtml(roiCalculator.resultPrefix || 'ca. '),
-                resultSuffix: escapeHtml(roiCalculator.resultSuffix || ' € / Jahr')
-            };
-        }
+        const cleanRoiCalculator = cleanRoiCalculatorInput(roiCalculator);
 
         const proposalData = {
             id: proposalId,
@@ -1634,8 +1734,8 @@ async function handleSaveProposal(req, res) {
             userId,
             language,
             tone,
-            documentType: escapeHtml(documentType || 'proposal'),
-            theme: escapeHtml(theme || 'modern-minimal'),
+            documentType,
+            theme,
             clientName: escapeHtml(clientName),
             clientEmail: clientEmail || '',
             category: escapeHtml(category || 'Projekt-Dokument'),
@@ -1643,10 +1743,10 @@ async function handleSaveProposal(req, res) {
             deadline: escapeHtml(deadline || 'ca. 4-6 Wochen'),
             agencyName: escapeHtml(agencyName || 'Agentur'),
             agencyEmail: agencyEmail || '',
-            logoUrl: logoUrl || '',
-            proposalHTML: proposalHTML,
+            logoUrl,
+            proposalHTML,
             roiCalculator: cleanRoiCalculator,
-            autoFollowUp: autoFollowUp !== false,
+            autoFollowUp: followUpsOn,
             followUpSentAt: null,
             followUpCount: 0,
             status: 'pending',
@@ -1671,7 +1771,7 @@ async function handleSaveProposal(req, res) {
             memoryProposals.set(proposalId, proposalData);
         }
 
-        console.log(`📝 [Digital Proposal / Magic Link] Angebot gespeichert: ${proposalId} für Kunde: ${clientName} (Status: pending)`);
+        console.log(`📝 [Digital Proposal / Magic Link] Angebot gespeichert: ${proposalId} (Status: pending)`);
 
         // Outbound Webhook Event: proposal.created
         dispatchOutboundWebhook(userId, 'proposal.created', {
@@ -1699,7 +1799,7 @@ async function handleSaveProposal(req, res) {
 
     } catch (error) {
         console.error('❌ Fehler beim Speichern des Angebots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 }
 
@@ -1743,7 +1843,12 @@ app.get('/api/proposals', verifyFirebaseAuth, requireAuth, async (req, res) => {
                         signedAt: data.signature ? data.signature.signedAt : (data.signedAt || null),
                         createdAt: data.createdAt || null,
                         shareUrl: data.shareUrl || `/view.html?id=${data.proposalId || doc.id}&token=${data.securityToken || ''}`,
-                        securityToken: data.securityToken || ''
+                        securityToken: data.securityToken || '',
+                        autoFollowUp: {
+                            enabled: isFollowUpEnabled(data.autoFollowUp),
+                            status: data.followUpStatus || (data.followUpSentAt ? 'sent' : 'scheduled'),
+                            sentAt: data.followUpSentAt || null
+                        }
                     });
                 });
 
@@ -1771,7 +1876,7 @@ app.get('/api/proposals', verifyFirebaseAuth, requireAuth, async (req, res) => {
 
     } catch (error) {
         console.error('❌ Fehler beim Abrufen der Angebote:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -1798,8 +1903,7 @@ app.get('/api/proposals/:id', async (req, res) => {
             return res.status(404).json({ error: 'NOT_FOUND', message: 'Angebot nicht gefunden.' });
         }
 
-        // Wenn ein Token im Dokument hinterlegt ist, validieren
-        if (proposal.securityToken && proposal.securityToken !== token) {
+        if (!tokensMatch(proposal.securityToken, token)) {
             return res.status(403).json({ error: 'FORBIDDEN', message: 'Ungültiger oder abgelaufener Freigabe-Link.' });
         }
 
@@ -1810,14 +1914,7 @@ app.get('/api/proposals/:id', async (req, res) => {
                 const userDoc = await db.collection('users').doc(proposal.userId).get();
                 if (userDoc.exists && hasActiveProEntitlement(userDoc.data())) {
                     const u = userDoc.data();
-                    branding = {
-                        userId: proposal.userId,
-                        agencyName: u.agencyName || proposal.agencyName || 'Agentur',
-                        brandLogoUrl: u.brandLogoUrl || proposal.logoUrl || '',
-                        brandPrimaryColor: u.brandPrimaryColor || '#2563eb',
-                        hideBranding: u.hideBranding !== false,
-                        customDomain: u.customDomain || ''
-                    };
+                    branding = publicBranding(u, proposal);
                 }
             } catch (e) {
                 console.warn('Branding fetch error:', e.message);
@@ -1826,10 +1923,10 @@ app.get('/api/proposals/:id', async (req, res) => {
 
         res.json({
             success: true,
-            proposal,
+            proposal: publicProposal(proposal),
             branding: branding || {
                 agencyName: 'AgencyOS',
-                brandLogoUrl: proposal.logoUrl || '',
+                brandLogoUrl: isSafeImageUrl(proposal.logoUrl) ? proposal.logoUrl : '',
                 brandPrimaryColor: '#2563eb',
                 hideBranding: false,
                 customDomain: ''
@@ -1838,7 +1935,7 @@ app.get('/api/proposals/:id', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Fehler beim Laden des E-Sign Angebots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -1869,7 +1966,7 @@ app.post('/api/proposals/:id/duplicate', verifyFirebaseAuth, requireAuth, async 
 
         const newProposalId = 'prop_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
         const securityToken = crypto.randomBytes(24).toString('hex');
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = appBaseUrl();
         const shareUrl = `${baseUrl}/view.html?id=${newProposalId}&token=${securityToken}`;
         const nowIso = new Date().toISOString();
 
@@ -1916,7 +2013,7 @@ app.post('/api/proposals/:id/duplicate', verifyFirebaseAuth, requireAuth, async 
 
     } catch (error) {
         console.error('❌ Fehler beim Duplizieren des Angebots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -1964,7 +2061,7 @@ app.delete('/api/proposals/:id', verifyFirebaseAuth, requireAuth, async (req, re
 
     } catch (error) {
         console.error('❌ Fehler beim Löschen des Angebots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2124,7 +2221,7 @@ Gib deine Antwort AUSSCHLIESSLICH als valides JSON in folgendem Format zurück (
 
     } catch (error) {
         console.error('❌ Fehler beim Deal-Scoring:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 };
 
@@ -2143,13 +2240,21 @@ app.post('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, requirePro,
             return res.status(400).json({ error: 'INVALID_BRAND_COLOR' });
         }
 
+        if (brandLogoUrl && !isSafeImageUrl(brandLogoUrl)) {
+            return res.status(400).json({ error: 'BRAND_LOGO_URL_INVALID' });
+        }
+
         if (customDomain) {
             customDomain = customDomain.trim().toLowerCase()
                 .replace(/^https?:\/\//, '')
                 .replace(/\/.*$/, '');
             
             const domainRegex = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$/i;
-            if (!domainRegex.test(customDomain)) {
+            const reservedDomain = customDomain === 'localhost'
+                || customDomain.endsWith('.localhost')
+                || customDomain.includes('agencyos')
+                || customDomain.includes('proposalgenius');
+            if (!domainRegex.test(customDomain) || reservedDomain) {
                 return res.status(400).json({
                     error: 'INVALID_DOMAIN',
                     message: 'Bitte gib eine gültige Domain oder Subdomain ein (z.B. angebote.agentur.de).'
@@ -2176,9 +2281,9 @@ app.post('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, requirePro,
         const updateData = {
             customDomain: customDomain || '',
             brandPrimaryColor: brandPrimaryColor || '#2563eb',
-            brandLogoUrl: brandLogoUrl || '',
+            brandLogoUrl: isSafeImageUrl(brandLogoUrl) ? brandLogoUrl : '',
             hideBranding: hideBranding !== false,
-            customDomainVerified: !!customDomain,
+            customDomainVerified: false,
             updatedAt: new Date().toISOString()
         };
 
@@ -2187,14 +2292,13 @@ app.post('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, requirePro,
         }
 
         if (customDomain) {
-            customDomainMap.set(customDomain, {
-                userId,
+            customDomainMap.set(customDomain, publicBranding({
                 agencyName: req.user.name || 'Agentur',
                 brandLogoUrl: updateData.brandLogoUrl,
                 brandPrimaryColor: updateData.brandPrimaryColor,
                 hideBranding: updateData.hideBranding,
                 customDomain
-            });
+            }));
         }
 
         res.json({
@@ -2205,7 +2309,7 @@ app.post('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, requirePro,
 
     } catch (error) {
         console.error('❌ Fehler beim Speichern der Custom Domain:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2238,7 +2342,7 @@ app.get('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, async (req, 
         res.json({ success: true, settings: data });
     } catch (error) {
         console.error('❌ Fehler beim Abrufen der Custom Domain:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2260,17 +2364,29 @@ app.post('/api/user/welcome', verifyFirebaseAuth, requireAuth, async (req, res) 
             }
         }
 
-        console.log(`📧 [Brevo] Sende Willkommens-E-Mail an: ${email}`);
+        if (db) {
+            const userRef = db.collection('users').doc(userId);
+            const existing = await userRef.get();
+            if (existing.exists && existing.data().welcomeEmailSentAt) {
+                return res.json({ success: true, alreadySent: true });
+            }
+        }
+
         const result = await sendWelcomeEmail({ to: email, name });
 
         if (result.success) {
+            if (db) {
+                await db.collection('users').doc(userId).set({
+                    welcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
             res.json({ success: true, message: 'Willkommens-E-Mail erfolgreich gesendet.' });
         } else {
-            res.status(500).json({ success: false, error: result.error });
+            res.status(500).json({ success: false, error: 'WELCOME_EMAIL_FAILED' });
         }
     } catch (error) {
         console.error('❌ Fehler beim Senden der Willkommens-E-Mail:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2280,10 +2396,10 @@ app.get('/api/branding/resolve', async (req, res) => {
         let branding = null;
 
         if (domain) {
-            const cleanDomain = domain.trim().toLowerCase();
+            const cleanDomain = String(domain).trim().toLowerCase();
             branding = customDomainMap.get(cleanDomain);
 
-            if (!branding && db) {
+            if (!branding && db && /^[a-z0-9.-]+$/.test(cleanDomain)) {
                 const snap = await db.collection('users')
                     .where('customDomain', '==', cleanDomain)
                     .limit(1)
@@ -2291,14 +2407,8 @@ app.get('/api/branding/resolve', async (req, res) => {
                 if (!snap.empty) {
                     const u = snap.docs[0].data();
                     if (hasActiveProEntitlement(u)) {
-                        branding = {
-                            userId: snap.docs[0].id,
-                            agencyName: u.agencyName || 'Agentur',
-                            brandLogoUrl: u.brandLogoUrl || '',
-                            brandPrimaryColor: u.brandPrimaryColor || '#2563eb',
-                            hideBranding: u.hideBranding !== false,
-                            customDomain: cleanDomain
-                        };
+                        branding = publicBranding(u);
+                        branding.customDomain = cleanDomain;
                         customDomainMap.set(cleanDomain, branding);
                     }
                 }
@@ -2308,24 +2418,16 @@ app.get('/api/branding/resolve', async (req, res) => {
         if (!branding && proposalId) {
             let p = null;
             if (db) {
-                const pDoc = await db.collection('proposals').doc(proposalId).get();
+                const pDoc = await db.collection('proposals').doc(String(proposalId)).get();
                 if (pDoc.exists) p = pDoc.data();
             } else {
                 p = memoryProposals.get(proposalId);
             }
 
-            if (p && p.userId && db) {
+            if (p && tokensMatch(p.securityToken, req.query.token) && p.userId && db) {
                 const uDoc = await db.collection('users').doc(p.userId).get();
                 if (uDoc.exists && hasActiveProEntitlement(uDoc.data())) {
-                    const u = uDoc.data();
-                    branding = {
-                        userId: p.userId,
-                        agencyName: u.agencyName || p.agencyName || 'Agentur',
-                        brandLogoUrl: u.brandLogoUrl || p.logoUrl || '',
-                        brandPrimaryColor: u.brandPrimaryColor || '#2563eb',
-                        hideBranding: u.hideBranding !== false,
-                        customDomain: u.customDomain || ''
-                    };
+                    branding = publicBranding(uDoc.data(), p);
                 }
             }
         }
@@ -2341,7 +2443,7 @@ app.get('/api/branding/resolve', async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2369,11 +2471,11 @@ app.post('/api/proposals/:id/trigger-followup', verifyFirebaseAuth, requireAuth,
             return res.status(403).json({ error: 'FORBIDDEN', message: 'Du hast keine Berechtigung, für dieses Angebot ein Follow-Up auszulösen.' });
         }
 
-        const result = await triggerSingleProposalFollowUp(proposalId, { db, memoryProposals, force: true });
+        const result = await triggerSingleProposalFollowUp(proposalId, { db, memoryProposals, force: false });
         res.json(result);
     } catch (error) {
         console.error('❌ Fehler beim Auslösen des Follow-Ups:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2404,7 +2506,7 @@ async function handleTrackProposalOpen(req, res) {
             return res.status(404).json({ error: 'NOT_FOUND' });
         }
 
-        if (proposal.securityToken && proposal.securityToken !== token) {
+        if (!tokensMatch(proposal.securityToken, token)) {
             return res.status(403).json({ error: 'FORBIDDEN' });
         }
 
@@ -2452,7 +2554,7 @@ async function handleTrackProposalOpen(req, res) {
         });
     } catch (error) {
         console.error('❌ Fehler beim Tracking (Open):', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 }
 
@@ -2484,7 +2586,7 @@ app.post('/api/proposals/:id/ping', async (req, res) => {
             return res.status(404).json({ error: 'NOT_FOUND' });
         }
 
-        if (proposal.securityToken && proposal.securityToken !== token) {
+        if (!tokensMatch(proposal.securityToken, token)) {
             return res.status(403).json({ error: 'FORBIDDEN' });
         }
 
@@ -2505,7 +2607,7 @@ app.post('/api/proposals/:id/ping', async (req, res) => {
         res.json({ success: true, totalDurationSeconds: updatedDuration });
     } catch (error) {
         console.error('❌ Fehler beim Tracking (Ping):', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2540,7 +2642,7 @@ async function handleSignAndAcceptProposal(req, res) {
             return res.status(404).json({ error: 'NOT_FOUND', message: 'Angebot nicht gefunden.' });
         }
 
-        if (proposal.securityToken && proposal.securityToken !== token) {
+        if (!tokensMatch(proposal.securityToken, token)) {
             return res.status(403).json({ error: 'FORBIDDEN', message: 'Ungültiger Freigabe-Link.' });
         }
 
@@ -2548,16 +2650,17 @@ async function handleSignAndAcceptProposal(req, res) {
             return res.status(400).json({ error: 'ALREADY_SIGNED', message: 'Dieses Angebot wurde bereits unterzeichnet.' });
         }
 
-        const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+        const ipAddress = clientIp(req) || '0.0.0.0';
         const signedAt = new Date().toISOString();
+        const safeSignature = parsePngDataUrl(signatureDataUrl);
 
         const signaturePayload = {
-            signerName: escapeHtml(signerName),
-            signerRole: escapeHtml(signerRole || ''),
+            signerName: escapeHtml(clipText(signerName, 160)),
+            signerRole: escapeHtml(clipText(signerRole || '', 80)),
             signedAt,
             ipAddress,
-            userAgent: req.headers['user-agent'] || 'Browser Client',
-            dataUrl: signatureDataUrl || ''
+            userAgent: clipText(req.headers['user-agent'] || 'Browser Client', 300),
+            dataUrl: safeSignature
         };
 
         if (db && proposalRef) {
@@ -2619,7 +2722,7 @@ async function handleSignAndAcceptProposal(req, res) {
 
     } catch (error) {
         console.error('❌ Fehler beim Signieren und Akzeptieren des Angebots:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 }
 
@@ -2656,7 +2759,7 @@ app.get('/api/integrations/webhook', verifyFirebaseAuth, requireAuth, requirePro
         res.json({ success: true, webhook: webhookData });
     } catch (error) {
         console.error('❌ Fehler beim Laden der Webhook-Konfiguration:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2694,7 +2797,10 @@ app.post('/api/integrations/webhook', verifyFirebaseAuth, requireAuth, requirePr
 
     } catch (error) {
         console.error('❌ Fehler beim Speichern der Webhook-Konfiguration:', error);
-        res.status(500).json({ error: error.message });
+        if (error.message === 'WEBHOOK_URL_REJECTED') {
+            return res.status(400).json({ error: 'WEBHOOK_URL_REJECTED' });
+        }
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2726,7 +2832,7 @@ app.post('/api/integrations/test', verifyFirebaseAuth, requireAuth, requirePro, 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 7000);
 
-        const testResponse = await fetch(safeWebhookUrl, {
+        const testResponse = await safeOutboundFetch(safeWebhookUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2735,22 +2841,22 @@ app.post('/api/integrations/test', verifyFirebaseAuth, requireAuth, requirePro, 
             body: JSON.stringify(testPayload),
             signal: controller.signal
         });
+        await testResponse.body?.cancel?.().catch(() => {});
 
         clearTimeout(timeout);
-        const responseText = await testResponse.text().catch(() => '');
 
         res.json({
             success: testResponse.ok,
             status: testResponse.status,
-            statusText: testResponse.statusText,
-            responseBody: responseText.slice(0, 300)
+            statusText: testResponse.statusText
         });
 
     } catch (error) {
         console.error('❌ Fehler beim Testen des Webhooks:', error);
-        res.status(500).json({
+        const rejected = error.message === 'WEBHOOK_URL_REJECTED';
+        res.status(rejected ? 400 : 500).json({
             success: false,
-            error: error.message || 'Verbindung zum Webhook konnte nicht hergestellt werden.'
+            error: rejected ? 'WEBHOOK_URL_REJECTED' : 'SERVER_ERROR'
         });
     }
 });
@@ -2803,7 +2909,7 @@ app.get('/api/proposals/:id/analytics', verifyFirebaseAuth, requireAuth, async (
         });
     } catch (error) {
         console.error('❌ Fehler beim Abrufen der Analytics:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 });
 
@@ -2814,7 +2920,7 @@ const handleCreateCheckoutSession = async (req, res) => {
     try {
         const userId = req.user.uid;
         const userEmail = req.user.email || '';
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const baseUrl = appBaseUrl();
         const billingCycle = req.body.billingCycle || 'monthly';
         if (billingCycle !== 'monthly') {
             return res.status(400).json({ error: 'Für AgencyOS Pro ist derzeit nur das monatliche Abo verfügbar.' });
@@ -2859,13 +2965,16 @@ const handleCreateCheckoutSession = async (req, res) => {
             cancel_url: `${baseUrl}/index.html?payment=canceled`,
         };
 
-        if (userEmail) {
+        if (userEmail && req.user.email_verified === true) {
             sessionPayload.customer_email = userEmail;
         }
 
         console.log(`💳 [Stripe Checkout] Erstelle Session für User: ${userId} | PPP: ${ppp.tierId} (${targetPriceId}) | Cycle: ${billingCycle} | Land: ${ppp.detectedIpCountry}`);
 
         const session = await stripe.checkout.sessions.create(sessionPayload);
+        if (!isTrustedStripeUrl(session.url)) {
+            return res.status(502).json({ error: 'CHECKOUT_URL_INVALID' });
+        }
         res.json({
             url: session.url,
             sessionId: session.id,
@@ -2874,7 +2983,7 @@ const handleCreateCheckoutSession = async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Fehler beim Erstellen der Stripe Checkout Session:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'SERVER_ERROR' });
     }
 };
 
@@ -2891,58 +3000,19 @@ app.post('/create-checkout-session', verifyFirebaseAuth, requireAuth, doubleVeri
 app.post('/api/create-customer-portal-session', verifyFirebaseAuth, requireAuth, async (req, res) => {
     try {
         const userId = req.user.uid;
-        const userEmail = req.user.email;
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-
-        console.log(`💳 [Stripe Portal] Generiere Billing Portal Session für User: ${userId} (${userEmail})`);
-
-        let stripeCustomerId = null;
-
-        // 1. Suche Stripe Customer ID in Firestore
-        if (db) {
-            const userDoc = await db.collection('users').doc(userId).get();
-            if (userDoc.exists) {
-                stripeCustomerId = userDoc.data().stripeCustomerId;
-            }
-        }
-
-        // 2. Fallback: Suche Kunden via E-Mail bei Stripe
-        if (!stripeCustomerId && userEmail) {
-            const existingCustomers = await stripe.customers.list({
-                email: userEmail,
-                limit: 1
-            });
-
-            if (existingCustomers.data.length > 0) {
-                stripeCustomerId = existingCustomers.data[0].id;
-                if (db) {
-                    await db.collection('users').doc(userId).set({ stripeCustomerId }, { merge: true });
-                }
-            }
-        }
-
-        // 3. Wenn immer noch kein Stripe Customer existiert: Erstelle einen neuen
+        const baseUrl = appBaseUrl();
+        const stripeCustomerId = await ownedStripeCustomerId(userId);
         if (!stripeCustomerId) {
-            const newCustomer = await stripe.customers.create({
-                email: userEmail,
-                metadata: {
-                    userId: userId,
-                    app: 'AgencyOS'
-                }
-            });
-            stripeCustomerId = newCustomer.id;
-            if (db) {
-                await db.collection('users').doc(userId).set({ stripeCustomerId }, { merge: true });
-            }
+            return res.status(404).json({ error: 'BILLING_CUSTOMER_NOT_FOUND' });
         }
 
-        // 4. Erstelle die Billing Portal Session
         const portalSession = await stripe.billingPortal.sessions.create({
             customer: stripeCustomerId,
             return_url: `${baseUrl}/index.html?portal=returned`
         });
-
-        console.log(`✅ [Stripe Portal] Session erfolgreich generiert: ${portalSession.url}`);
+        if (!isTrustedStripeUrl(portalSession.url)) {
+            return res.status(502).json({ error: 'PORTAL_URL_INVALID' });
+        }
 
         res.json({
             success: true,
@@ -2950,10 +3020,7 @@ app.post('/api/create-customer-portal-session', verifyFirebaseAuth, requireAuth,
         });
     } catch (error) {
         console.error('❌ Fehler beim Erstellen der Customer Portal Session:', error);
-        res.status(500).json({
-            error: 'PORTAL_SESSION_FAILED',
-            message: error.message || 'Konnte Kundenportal-Sitzung nicht initialisieren.'
-        });
+        res.status(500).json({ error: 'PORTAL_SESSION_FAILED' });
     }
 });
 
@@ -2987,34 +3054,20 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
         // ---------------------------------------------------------------------
         // SCHRITT 1: STRIPE ZERO-GHOST-BILLING (Alle Abonnements sofort stornieren)
         // ---------------------------------------------------------------------
-        let stripeCustomerId = null;
-        if (db) {
-            const userDoc = await db.collection('users').doc(userId).get();
-            if (userDoc.exists) {
-                stripeCustomerId = userDoc.data().stripeCustomerId;
-            }
-        }
-
-        if (!stripeCustomerId && userEmail) {
-            const existingCust = await stripe.customers.list({ email: userEmail, limit: 1 });
-            if (existingCust.data.length > 0) {
-                stripeCustomerId = existingCust.data[0].id;
-            }
-        }
+        const stripeCustomerId = await ownedStripeCustomerId(userId);
 
         if (stripeCustomerId) {
             try {
-                // Suche alle aktiven oder pausierten Abonnements
                 const subscriptions = await stripe.subscriptions.list({
                     customer: stripeCustomerId,
                     status: 'all'
                 });
 
                 for (const sub of subscriptions.data) {
-                    if (['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status)) {
+                    if (['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status) && subscriptionIncludesAgencyPrice(sub)) {
                         await stripe.subscriptions.cancel(sub.id);
                         deletionSummary.subscriptionsCancelled++;
-                        console.log(`🔒 [Stripe] Aktive Subscription ${sub.id} sofort storniert.`);
+                        console.log('🔒 [Stripe] AgencyOS-Subscription sofort storniert.');
                     }
                 }
             } catch (stripeErr) {
@@ -3029,12 +3082,15 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
             try {
                 const proposalsSnapshot = await db.collection('proposals').where('userId', '==', userId).get();
                 if (!proposalsSnapshot.empty) {
-                    const batch = db.batch();
-                    proposalsSnapshot.docs.forEach(doc => {
-                        batch.delete(doc.ref);
-                        deletionSummary.proposalsDeleted++;
-                    });
-                    await batch.commit();
+                    const docs = proposalsSnapshot.docs;
+                    for (let index = 0; index < docs.length; index += 400) {
+                        const batch = db.batch();
+                        docs.slice(index, index + 400).forEach(doc => {
+                            batch.delete(doc.ref);
+                            deletionSummary.proposalsDeleted++;
+                        });
+                        await batch.commit();
+                    }
                     console.log(`🗑️ [Database] ${deletionSummary.proposalsDeleted} gespeicherte Angebote gelöscht.`);
                 }
             } catch (propErr) {
@@ -3058,7 +3114,9 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
         }
 
         // Memory Stores bereinigen
-        memoryProposals.delete(userId);
+        for (const [id, proposal] of [...memoryProposals.entries()]) {
+            if (proposal.userId === userId) memoryProposals.delete(id);
+        }
         memoryWebhooks.delete(userId);
 
         // ---------------------------------------------------------------------
@@ -3100,7 +3158,7 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
         console.error('❌ Kritischer Fehler bei der Account-Löschung:', criticalError);
         res.status(500).json({
             error: 'DELETION_FAILED',
-            message: 'Fehler bei der Account-Löschung: ' + criticalError.message
+            message: 'Fehler bei der Account-Löschung.'
         });
     }
 });
@@ -3201,16 +3259,6 @@ app.post('/api/support-chat', supportChatLimiter, async (req, res) => {
 app.get('*', (req, res) => {
     res.status(404).type('text/plain').send('Not Found');
 });
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
 
 async function reconcileExpiredEntitlements() {
     if (!db) return;

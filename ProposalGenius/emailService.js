@@ -11,6 +11,16 @@
  */
 
 require('dotenv').config();
+const { escapeHtml, plainText, safeHttpUrl, safeHttpsUrl, safeStripeHostedUrl } = require('./public/htmlSanitize');
+
+function htmlText(value, max = 240) {
+    return escapeHtml(plainText(value, max));
+}
+
+function plainEmail(value) {
+    const email = plainText(value, 254);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
 
 const isProduction = process.env.NODE_ENV === 'production';
 const EMAIL_PROVIDER = String(process.env.EMAIL_PROVIDER || (process.env.N8N_WEBHOOK_URL ? 'n8n' : 'brevo')).toLowerCase();
@@ -69,6 +79,7 @@ async function sendEmail({ to, name = '', subject, htmlContent, textContent = ''
             const timeout = setTimeout(() => controller.abort(), 10000);
             const response = await fetch(N8N_WEBHOOK_URL, {
                 method: 'POST',
+                redirect: 'error',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Polymath-Token': N8N_WEBHOOK_TOKEN,
@@ -92,7 +103,7 @@ async function sendEmail({ to, name = '', subject, htmlContent, textContent = ''
             clearTimeout(timeout);
             const body = await response.text();
             if (!response.ok || /"success"\s*:\s*false|"error"/i.test(body)) {
-                throw new Error(`n8n antwortete mit HTTP ${response.status}: ${body.slice(0, 300)}`);
+                throw new Error(`n8n antwortete mit HTTP ${response.status}`);
             }
             return { success: true, messageId: `n8n-${Date.now()}` };
         }
@@ -158,7 +169,10 @@ async function sendEmail({ to, name = '', subject, htmlContent, textContent = ''
  * @param {string} [params.invoiceUrl] - Stripe Hosted Invoice URL
  */
 async function sendPaymentFailedEmail({ to, name = 'Kunde', portalUrl = 'https://agencyos.com', invoiceUrl = '' }) {
-    const actionUrl = portalUrl || invoiceUrl || 'https://agencyos.com';
+    name = htmlText(name, 160);
+    portalUrl = safeHttpsUrl(portalUrl) || 'https://agencyos.com';
+    invoiceUrl = safeStripeHostedUrl(invoiceUrl);
+    const actionUrl = invoiceUrl || portalUrl;
     const subject = '⚠️ Wichtig: Deine Zahlung für AgencyOS Pro ist fehlgeschlagen';
 
     const htmlContent = `
@@ -254,6 +268,7 @@ async function sendPaymentFailedEmail({ to, name = 'Kunde', portalUrl = 'https:/
  * @param {string} [params.name] - Name des Nutzers
  */
 async function sendAccountDeletedEmail({ to, name = 'Nutzer' }) {
+    name = htmlText(name, 160);
     const subject = 'Bestätigung: Dein AgencyOS Account wurde dauerhaft gelöscht';
 
     const htmlContent = `
@@ -360,9 +375,15 @@ async function sendFollowUpEmail({
         invoice: 'Rechnung'
     };
     const docTypeName = docTypeNames[documentType] || 'Angebot';
+    clientName = htmlText(clientName, 160);
+    agencyName = htmlText(agencyName, 160);
+    agencyEmail = plainEmail(agencyEmail);
+    budget = htmlText(budget, 80);
+    const subjectCategory = plainText(proposalCategory, 120);
+    proposalCategory = htmlText(proposalCategory, 180);
 
-    const subject = `Offene Fragen zu unserem ${docTypeName}: "${proposalCategory}"?`;
-    const actionUrl = shareUrl || 'https://agencyos.com';
+    const subject = `Offene Fragen zu unserem ${docTypeName}: "${subjectCategory}"?`;
+    const actionUrl = safeHttpUrl(shareUrl) || 'https://agencyos.com';
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -482,10 +503,16 @@ async function sendProposalSignedConfirmation({
         invoice: 'Rechnung'
     };
     const docTypeName = docTypeNames[documentType] || 'Angebot';
+    recipientName = htmlText(recipientName, 160);
+    signerName = htmlText(signerName, 160);
+    signerRole = htmlText(signerRole, 80);
+    agencyName = htmlText(agencyName, 160);
+    const subjectCategory = plainText(proposalCategory, 120);
+    proposalCategory = htmlText(proposalCategory, 180);
 
     const formattedDate = signedAt ? new Date(signedAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' }) : new Date().toLocaleString('de-DE');
-    const subject = `✍️ Bestätigung: ${docTypeName} "${proposalCategory}" wurde erfolgreich signiert!`;
-    const actionUrl = shareUrl || 'https://agencyos.com';
+    const subject = `✍️ Bestätigung: ${docTypeName} "${subjectCategory}" wurde erfolgreich signiert!`;
+    const actionUrl = safeHttpUrl(shareUrl) || 'https://agencyos.com';
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -570,6 +597,7 @@ async function sendProposalSignedConfirmation({
  * @param {string} [params.name] - Name des Kunden
  */
 async function sendWelcomeEmail({ to, name = 'Nutzer' }) {
+    name = htmlText(name, 160);
     const subject = '👋 Willkommen bei AgencyOS!';
 
     const htmlContent = `
@@ -646,6 +674,8 @@ async function sendWelcomeEmail({ to, name = 'Nutzer' }) {
  * @param {string} [params.portalUrl] - Link zum Stripe Customer Portal
  */
 async function sendSubscriptionConfirmedEmail({ to, name = 'Kunde', portalUrl = 'https://agencyos.com' }) {
+    name = htmlText(name, 160);
+    portalUrl = safeHttpsUrl(portalUrl) || 'https://agencyos.com';
     const subject = '🎉 Dein Upgrade auf AgencyOS Pro war erfolgreich!';
 
     const htmlContent = `
