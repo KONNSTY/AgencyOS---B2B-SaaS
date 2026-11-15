@@ -6,7 +6,8 @@
   "scripts": {
     "seo:build": "node tools/build-international-seo-pages.js",
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test tests/*.js"
   },
   "keywords": [
     "b2b",

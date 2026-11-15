@@ -897,7 +897,7 @@ function applyProfileToUI() {
         document.getElementById('docEmail').textContent = currentUserProfile.agencyEmail;
     }
 
-    if (currentUserProfile.logoUrl) {
+    if (currentUserProfile.logoUrl && window.AgencyHtml && AgencyHtml.isSafeImageUrl(currentUserProfile.logoUrl)) {
         const docLogo = document.getElementById('docLogo');
         docLogo.src = currentUserProfile.logoUrl;
         docLogo.classList.remove('hidden');
@@ -1273,7 +1273,7 @@ async function handleGenerateProposal() {
         let generatedHTML = '';
         if (response.ok) {
             const data = await response.json();
-            generatedHTML = data.html;
+            generatedHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(data.html || '') : (data.html || '');
 
             // Increment local profile count on successful generate
             if (currentUser && !currentUserProfile.isPro) {
@@ -1287,7 +1287,7 @@ async function handleGenerateProposal() {
             generatedHTML = buildLocalI18nDocumentTemplate(docTypeVal, selectedLanguage, client, goals, category, budget, deadline, agency, deliverables);
         }
 
-        document.getElementById('aiTextContent').innerHTML = generatedHTML;
+        document.getElementById('aiTextContent').innerHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(generatedHTML) : '';
         
         document.getElementById('docHeading').textContent = `${headingPrefix}: ${category}`;
         isProposalGenerated = true;
@@ -1303,7 +1303,7 @@ async function handleGenerateProposal() {
     } catch (err) {
         console.warn("Backend nicht erreichbar, nutze lokale Engine:", err);
         const generatedHTML = buildLocalI18nDocumentTemplate(docTypeVal, selectedLanguage, client, goals, category, budget, deadline, agency, deliverables);
-        document.getElementById('aiTextContent').innerHTML = generatedHTML;
+        document.getElementById('aiTextContent').innerHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(generatedHTML) : '';
         
         document.getElementById('docHeading').textContent = `${headingPrefix}: ${category}`;
         isProposalGenerated = true;
@@ -1321,11 +1321,16 @@ function buildLocalI18nProposalTemplate(lang, client, goals, category, budget, d
 }
 
 function buildLocalI18nDocumentTemplate(type, lang, client, goals, category, budget, deadline, agency, deliverables = '') {
-    const bulletPoints = goals.split('\n').filter(line => line.trim().length > 0);
-    const parsedBulletList = bulletPoints.map(item => `<li>${item.replace(/^[-*•]\s*/, '')}</li>`).join('');
+    client = escapeHtml(client);
+    category = escapeHtml(category);
+    budget = escapeHtml(budget);
+    deadline = escapeHtml(deadline);
+    agency = escapeHtml(agency);
+    const bulletPoints = String(goals || '').split('\n').filter(line => line.trim().length > 0);
+    const parsedBulletList = bulletPoints.map(item => `<li>${escapeHtml(item.replace(/^[-*•]\s*/, ''))}</li>`).join('');
 
-    const deliverablePoints = deliverables.split('\n').filter(line => line.trim().length > 0);
-    const parsedDeliverablesList = deliverablePoints.map(item => `<li>${item.replace(/^[-*•]\s*/, '')}</li>`).join('');
+    const deliverablePoints = String(deliverables || '').split('\n').filter(line => line.trim().length > 0);
+    const parsedDeliverablesList = deliverablePoints.map(item => `<li>${escapeHtml(item.replace(/^[-*•]\s*/, ''))}</li>`).join('');
 
     const isDe = lang === 'de' || !['en', 'fr', 'es'].includes(lang);
 
@@ -1666,7 +1671,7 @@ async function handlePublishESign() {
             headers: headers,
             body: JSON.stringify({
                 clientName: client,
-                clientEmail: '',
+                clientEmail: document.getElementById('clientEmail')?.value.trim() || '',
                 category: document.getElementById('projectCategory').value.trim(),
                 budget: document.getElementById('projectBudget').value.trim() || 'Nach Vereinbarung',
                 deadline: document.getElementById('projectDeadline').value.trim() || 'ca. 4-6 Wochen',
@@ -2000,6 +2005,16 @@ function formatDuration(totalSeconds) {
     const minutes = Math.floor(totalSeconds / 60);
     const remainingSeconds = totalSeconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
+}
+
+function isTrustedBillingUrl(value) {
+    if (window.AgencyHtml) return AgencyHtml.isTrustedStripeUrl(value);
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && (url.hostname === 'checkout.stripe.com' || url.hostname === 'billing.stripe.com');
+    } catch {
+        return false;
+    }
 }
 
 function escapeHtml(str) {
@@ -2745,7 +2760,7 @@ async function triggerStripeCheckout() {
         });
 
         const data = await response.json();
-        if (data.url) {
+        if (data.url && isTrustedBillingUrl(data.url)) {
             window.location.href = data.url;
         } else {
             throw new Error(data.error || 'Keine Checkout-URL erhalten.');
@@ -2892,7 +2907,7 @@ function bindProfileEvents() {
                 profilePlanBadge.className = 'text-[10px] font-extrabold bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full';
             }
             if (profilePlanStatus) {
-                profilePlanStatus.textContent = `${currentUserProfile.freeProposalsUsed || 0} von 1 Dokument genutzt`;
+                profilePlanStatus.textContent = 'Kostenlos: 1 Dokument je Typ';
                 profilePlanStatus.className = 'font-medium text-slate-300';
             }
             if (profilePlanIcon) {
@@ -3014,7 +3029,7 @@ function bindProfileEvents() {
 
             const data = await response.json();
 
-            if (data.success && data.url) {
+            if (data.success && data.url && isTrustedBillingUrl(data.url)) {
                 window.location.href = data.url;
             } else {
                 throw new Error(data.message || data.error || 'Konnte Portal nicht öffnen.');
@@ -3276,8 +3291,9 @@ function renderDealScoreResults(data) {
     const setMetric = (valId, barId, val) => {
         const vEl = document.getElementById(valId);
         const bEl = document.getElementById(barId);
-        if (vEl) vEl.textContent = `${val}%`;
-        if (bEl) bEl.style.width = `${val}%`;
+        const numeric = Math.max(0, Math.min(100, Number(val) || 0));
+        if (vEl) vEl.textContent = `${numeric}%`;
+        if (bEl) bEl.style.width = `${numeric}%`;
     };
 
     setMetric('dealMetricValueClarity', 'dealBarValueClarity', metrics.valueClarity || 85);

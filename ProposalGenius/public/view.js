@@ -424,11 +424,12 @@ function renderProposal(p, branding = null) {
     document.getElementById('docBudget').textContent = p.budget || '-';
 
     // Body Text
-    document.getElementById('aiTextContent').innerHTML = p.proposalHTML || '<p>Kein Text hinterlegt.</p>';
+    const proposalHtml = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(p.proposalHTML || '') : (p.proposalHTML || '');
+    document.getElementById('aiTextContent').innerHTML = proposalHtml || '<p>Kein Text hinterlegt.</p>';
 
     // Logo & Branding (Feature 1: White-Labeling)
     const logoUrl = (branding && branding.brandLogoUrl) || p.logoUrl || '';
-    if (logoUrl) {
+    if (logoUrl && window.AgencyHtml && AgencyHtml.isSafeImageUrl(logoUrl)) {
         const logo = document.getElementById('docLogo');
         logo.src = logoUrl;
         logo.classList.remove('hidden');
@@ -448,7 +449,7 @@ function renderProposal(p, branding = null) {
             if (headerTitle) headerTitle.textContent = `${branding.agencyName} Portal`;
         }
 
-        if (branding.brandPrimaryColor) {
+        if (branding.brandPrimaryColor && window.AgencyHtml && AgencyHtml.isSafeHexColor(branding.brandPrimaryColor)) {
             document.documentElement.style.setProperty('--primary-brand-color', branding.brandPrimaryColor);
         }
 
@@ -458,7 +459,7 @@ function renderProposal(p, branding = null) {
 
             const footerLeft = document.getElementById('footerBrandLeft');
             if (footerLeft) {
-                footerLeft.innerHTML = `&copy; ${new Date().getFullYear()} ${agencyName} • Alle Rechte vorbehalten.`;
+                footerLeft.textContent = `© ${new Date().getFullYear()} ${agencyName} • Alle Rechte vorbehalten.`;
             }
 
             const viralBanner = document.getElementById('viralGrowthBanner');
@@ -491,7 +492,9 @@ function renderProposal(p, branding = null) {
         if (theme === 'corporate' || theme === 'minimalist') resolvedTheme = 'modern-minimal';
         if (theme === 'creative') resolvedTheme = 'creative-bold';
 
-        exportDoc.classList.add(`theme-${resolvedTheme}`);
+        if (allThemes.includes(resolvedTheme)) {
+            exportDoc.classList.add(`theme-${resolvedTheme}`);
+        }
     }
 
     // Status UI
@@ -617,7 +620,7 @@ function updateStatusUI(p) {
                 if (hashEl) hashEl.textContent = `sha256:${(rawAuditString.length * 314159265).toString(16)}`;
             });
 
-            if (p.signature.dataUrl) {
+            if (p.signature.dataUrl && window.AgencyHtml && AgencyHtml.isSafeImageUrl(p.signature.dataUrl) && String(p.signature.dataUrl).startsWith('data:image/png')) {
                 document.getElementById('auditSignatureImg').src = p.signature.dataUrl;
             }
         }

@@ -6,6 +6,7 @@
  */
 
 const { sendFollowUpEmail } = require('./emailService');
+const { isFollowUpEnabled } = require('./securityUtils');
 
 const FOLLOW_UP_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 Stunden
 let cronIntervalTimer = null;
@@ -56,7 +57,7 @@ async function checkAndSendFollowUps({ db, memoryProposals }) {
     for (const proposal of proposalsToCheck) {
         try {
             // Auto-Follow-Up muss aktiviert sein
-            if (proposal.autoFollowUp === false) {
+            if (!isFollowUpEnabled(proposal.autoFollowUp)) {
                 stats.skipped++;
                 continue;
             }
@@ -90,7 +91,7 @@ async function checkAndSendFollowUps({ db, memoryProposals }) {
             }
 
             // Bedingungen erfüllt: Follow-Up E-Mail senden
-            console.log(`📨 [Auto-Follow-Up] Sende Follow-Up für Angebot #${proposal.id} an ${proposal.clientEmail} (Offen seit ${Math.round(elapsedMs / (1000 * 60 * 60))}h)...`);
+            console.log(`📨 [Auto-Follow-Up] Sende Follow-Up für Angebot #${proposal.id} (Offen seit ${Math.round(elapsedMs / (1000 * 60 * 60))}h)...`);
 
             const emailResult = await sendFollowUpEmail({
                 to: proposal.clientEmail,

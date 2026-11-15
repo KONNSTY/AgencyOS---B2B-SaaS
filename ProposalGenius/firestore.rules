@@ -25,16 +25,25 @@ service cloud.firestore {
       // Nur der Inhaber darf sein eigenes Profil lesen
       allow read: if isOwner(userId);
 
-      // Beim Erstellen müssen Standardwerte gesetzt sein (keine Manipulation von Pro-Status)
+      // Beim Erstellen dürfen keine Abrechnungs-, Webhook- oder Domain-Felder gesetzt werden.
       allow create: if isOwner(userId)
+                    && request.resource.data.email == request.auth.token.email
                     && request.resource.data.isPro == false
+                    && request.resource.data.plan == 'free'
                     && request.resource.data.freeProposalsUsed == 0
-                    && request.resource.data.email == request.auth.token.email;
+                    && request.resource.data.keys().hasOnly([
+                        'uid', 'email', 'displayName', 'photoURL', 'agencyName',
+                        'agencyEmail', 'agencyPhone', 'agencyAddress', 'logoUrl',
+                        'brandLogoUrl', 'brandPrimaryColor', 'brandColor',
+                        'hideBranding', 'marketingOptIn', 'isPro', 'plan',
+                        'freeProposalsUsed', 'createdAt', 'updatedAt'
+                    ]);
 
       // Beim Update dürfen sensible Felder nicht verändert werden (Abo-Status, Zähler etc.)
       // Diese Felder werden ausschließlich vom sicheren Backend/Stripe-Webhook aktualisiert.
       allow update: if isOwner(userId)
                     && request.resource.data.isPro == resource.data.isPro
+                    && request.resource.data.plan == resource.data.plan
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
                         'freeProposalsUsed', 
                         'freeProposalsUsedByDocType', 
@@ -50,13 +59,19 @@ service cloud.firestore {
                         'downgradedAt',
                         'paymentFailedAt',
                         'lastPaymentAt',
-                        'isPro'
+                        'isPro',
+                        'webhookUrl',
+                        'webhookEvents',
+                        'webhookEnabled',
+                        'customDomain',
+                        'customDomainVerified',
+                        'welcomeEmailSentAt'
                     ]))
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                         'uid', 'email', 'displayName', 'photoURL', 'agencyName',
                         'agencyEmail', 'agencyPhone', 'agencyAddress', 'logoUrl',
                         'brandLogoUrl', 'brandPrimaryColor', 'brandColor',
-                        'hideBranding', 'customDomain', 'marketingOptIn', 'updatedAt'
+                        'hideBranding', 'marketingOptIn', 'updatedAt'
                     ]);
 
       allow delete: if false; // Löschung nur über Backend

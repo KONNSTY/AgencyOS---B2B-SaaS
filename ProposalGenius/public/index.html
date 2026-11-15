@@ -93,6 +93,7 @@
     <!-- Firebase-Konfiguration: wird im Container aus der gemeinsamen
          Polymath-Produktionsumgebung erzeugt. -->
     <script src="/firebase-runtime-config.js"></script>
+    <script src="/htmlSanitize.js"></script>
     
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="marketing.css">
@@ -426,6 +427,12 @@
                         <div>
                             <label class="block text-[11px] font-medium text-slate-400 mb-1">Kundenname & Ansprechpartner</label>
                             <input type="text" id="clientName" placeholder="z.B. Schmidt & Partner Steuerberatung"
+                                class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-slate-400 mb-1">Kunden-E-Mail für Follow-up</label>
+                            <input type="email" id="clientEmail" placeholder="z.B. anna@kunde.de" autocomplete="off"
                                 class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
 

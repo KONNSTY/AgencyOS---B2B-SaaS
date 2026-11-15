@@ -5,6 +5,8 @@
  */
 
 const https = require('https');
+const net = require('net');
+const { clientIp, isPrivateAddress } = require('./securityUtils');
 
 // =============================================================================
 // 1. PPP COUNTRY & REGION TIERS CONFIGURATION
@@ -96,38 +98,29 @@ const TIMEZONE_TO_COUNTRY_MAP = {
  * Fast lookup to get country code from a client IP address
  */
 async function resolveIpCountry(req) {
-    // 1. Check Cloud Edge Headers (Vercel, Cloudflare, CloudFront, Google App Engine)
-    const cloudCountry = 
-        req.headers['x-vercel-ip-country'] ||
-        req.headers['cf-ipcountry'] ||
-        req.headers['x-appengine-country'] ||
-        req.headers['cloudfront-viewer-country'] ||
-        req.headers['x-country-code'];
+    // Only the connection address is trusted. Geo headers and the left-most
+    // forwarded address are caller-controlled unless a local proxy appended them.
+    const ip = clientIp(req);
 
-    if (cloudCountry && cloudCountry.length === 2 && cloudCountry !== 'XX' && cloudCountry !== 'T1') {
-        return cloudCountry.toUpperCase();
+    if (!ip || isPrivateAddress(ip)) {
+        const override = String(process.env.DEV_IP_COUNTRY || 'DE').toUpperCase();
+        return /^[A-Z]{2}$/.test(override) ? override : 'DE';
     }
 
-    // 2. Extract client IP address
-    const forwarded = req.headers['x-forwarded-for'];
-    const clientIp = (forwarded ? forwarded.split(',')[0].trim() : req.socket.remoteAddress) || '';
+    if (!net.isIP(ip)) return 'DE';
 
-    // Handle Localhost / Development IP
-    if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.')) {
-        // In local development, check if a dev country override was passed or default to DE
-        return process.env.DEV_IP_COUNTRY || 'DE';
-    }
-
-    // 3. Fallback Geo-IP Lookup for bare servers
+    // Fallback Geo-IP Lookup for bare servers
     return new Promise((resolve) => {
         const timeout = setTimeout(() => resolve('DE'), 1200); // 1.2s timeout fallback
 
-        const sanitizedIp = clientIp.replace(/[^0-9a-fA-F:.]/g, '');
-        const url = `https://ipapi.co/${sanitizedIp}/country/`;
+        const url = `https://ipapi.co/${encodeURIComponent(ip)}/country/`;
 
         https.get(url, { headers: { 'User-Agent': 'AgencyOS-PPP-Verify/1.0' } }, (res) => {
             let data = '';
-            res.on('data', (chunk) => data += chunk);
+            res.on('data', (chunk) => {
+                data += chunk;
+                if (data.length > 16) res.destroy();
+            });
             res.on('end', () => {
                 clearTimeout(timeout);
                 const code = data.trim().toUpperCase();
