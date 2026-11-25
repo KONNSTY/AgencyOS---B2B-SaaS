@@ -37,6 +37,7 @@ const {
     agencyPriceIds,
     subscriptionIncludesAgencyPrice,
     invoiceIncludesAgencyPrice,
+    checkoutPriceId,
     validateOutboundUrl,
     safeOutboundFetch
 } = require('./securityUtils');
@@ -78,8 +79,7 @@ try {
         if (fs.existsSync(explicitPath)) {
             serviceAccount = require(explicitPath);
             sourceDesc = path.basename(explicitPath);
-        } else {
-            // Auto-detect any *-firebase-adminsdk-*.json in root directory
+        } else if (!isProduction) {
             const rootFiles = fs.readdirSync(__dirname);
             const adminSdkFile = rootFiles.find(f => f.includes('firebase-adminsdk') && f.endsWith('.json'));
             if (adminSdkFile) {
@@ -138,16 +138,18 @@ app.use(helmet({
             baseUri: ["'self'"],
             objectSrc: ["'none'"],
             frameAncestors: ["'none'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://cdnjs.cloudflare.com', 'https://www.gstatic.com'],
+            scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tailwindcss.com', 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://www.gstatic.com'],
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
             imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
             connectSrc: ["'self'", 'https://*.googleapis.com', 'https://*.firebaseio.com', 'https://securetoken.googleapis.com', 'https://identitytoolkit.googleapis.com', 'https://firebasestorage.googleapis.com'],
             frameSrc: ["'self'", 'https://accounts.google.com', 'https://*.firebaseapp.com'],
-            formAction: ["'self'", 'https://checkout.stripe.com']
+            formAction: ["'self'", 'https://checkout.stripe.com'],
+            upgradeInsecureRequests: isProduction ? [] : null
         }
     },
-    crossOriginEmbedderPolicy: false
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
 }));
 
 const allowedOrigins = new Set(
@@ -182,7 +184,7 @@ app.use('/api/', apiLimiter);
 
 const supportChatLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 30,
+    max: 12,
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => rateLimit.ipKeyGenerator(clientIp(req) || 'unknown'),
@@ -192,6 +194,26 @@ const supportChatLimiter = rateLimit({
 
 // In-Memory Custom Domain Lookup Cache (Domain -> Branding Metadata)
 const customDomainMap = new Map();
+const CUSTOM_DOMAIN_CACHE_MS = 60 * 1000;
+
+function cacheCustomBranding(host, branding) {
+    if (!host || !branding) return;
+    customDomainMap.set(host, { branding, cachedAt: Date.now() });
+}
+
+function cachedCustomBranding(host) {
+    const entry = customDomainMap.get(host);
+    if (!entry?.branding || !entry.cachedAt) return null;
+    if (Date.now() - entry.cachedAt > CUSTOM_DOMAIN_CACHE_MS) {
+        customDomainMap.delete(host);
+        return null;
+    }
+    return entry.branding;
+}
+
+function forgetCustomBranding(host) {
+    if (host) customDomainMap.delete(String(host).toLowerCase());
+}
 
 /**
  * Custom Domain & White-Label Interceptor Middleware
@@ -203,7 +225,7 @@ const customDomainMiddleware = async (req, res, next) => {
         const targetHost = rawHost;
 
         if (targetHost && targetHost !== 'localhost' && targetHost !== '127.0.0.1' && !targetHost.includes('agencyos') && !targetHost.includes('proposalgenius') && !targetHost.includes('onrender') && !targetHost.includes('vercel')) {
-            let branding = customDomainMap.get(targetHost);
+            let branding = cachedCustomBranding(targetHost);
 
             if (!branding && db) {
                 const snapshot = await db.collection('users')
@@ -216,7 +238,7 @@ const customDomainMiddleware = async (req, res, next) => {
                     if (hasActiveProEntitlement(uData)) {
                         branding = publicBranding(uData);
                         branding.customDomain = targetHost;
-                        customDomainMap.set(targetHost, branding);
+                        cacheCustomBranding(targetHost, branding);
                     }
                 }
             }
@@ -356,15 +378,8 @@ function appBaseUrl() {
     return isProduction ? 'https://agencyos.com' : 'http://localhost:3000';
 }
 
-function priceForCountry(country) {
-    const code = String(country || '').toUpperCase();
-    const priceByCountry = {
-        US: process.env.AGENCY_OS_PRICE_USD_MONTHLY,
-        AU: process.env.AGENCY_OS_PRICE_AUD_MONTHLY,
-        SG: process.env.AGENCY_OS_PRICE_SGD_MONTHLY,
-        ID: process.env.AGENCY_OS_PRICE_IDR_MONTHLY
-    };
-    return priceByCountry[code] || process.env.AGENCY_OS_PRICE_EUR_MONTHLY;
+function priceForCountry(country, isSpoofed = false) {
+    return checkoutPriceId(country, isSpoofed);
 }
 
 async function claimStripeEvent(eventId) {
@@ -479,13 +494,31 @@ async function applyPaidCheckoutSession(session) {
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
     const userData = userDoc.exists ? userDoc.data() : {};
+    const sessionCustomerId = session.customer || subscription.customer || null;
+    if (userData.stripeCustomerId && sessionCustomerId && userData.stripeCustomerId !== sessionCustomerId) {
+        const storedCustomer = await stripe.customers.retrieve(userData.stripeCustomerId).catch(() => null);
+        if (storedCustomer && !storedCustomer.deleted) {
+            console.warn('⚠️ [Stripe] Checkout-Kunde passt nicht zum gespeicherten Abrechnungskonto.');
+            return false;
+        }
+    }
+    if (sessionCustomerId) {
+        const customer = await stripe.customers.retrieve(sessionCustomerId);
+        if (!customer || customer.deleted) return false;
+        if (customer.metadata?.userId && customer.metadata.userId !== userId) return false;
+        if (customer.metadata?.userId !== userId) {
+            await stripe.customers.update(sessionCustomerId, {
+                metadata: { ...(customer.metadata || {}), userId, app: 'agencyos' }
+            });
+        }
+    }
 
     const profileUpdate = {
         uid: userId,
         isPro: ['active', 'trialing', 'past_due'].includes(String(subscription.status).toLowerCase())
             && periodEnd.getTime() > Date.now(),
         plan: 'agencyos_pro',
-        stripeCustomerId: session.customer || subscription.customer || null,
+        stripeCustomerId: sessionCustomerId,
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: subscription.status || 'active',
         subscriptionAccessUntil: firestoreTimestamp(periodEnd),
@@ -712,22 +745,25 @@ function profileDefaults(user) {
 
 function cleanRoiCalculatorInput(roiCalculator) {
     if (!roiCalculator || !roiCalculator.enabled) return null;
-    const numberOr = (value, fallback) => {
+    const numberOr = (value, fallback, min, max) => {
         const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : fallback;
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.min(max, Math.max(min, parsed));
     };
+    const min = numberOr(roiCalculator.min, 1, 0, 1000000);
+    const max = Math.max(min, numberOr(roiCalculator.max, 50, 1, 1000000));
     return {
         enabled: true,
         title: clipText(roiCalculator.title || 'Geschätzter Mehrumsatz & ROI-Rechner', 160),
         description: clipText(roiCalculator.description || 'Passe den Schieberegler an:', 300),
         sliderLabel: clipText(roiCalculator.sliderLabel || 'Zusätzliche Kunden / Monat', 120),
-        min: numberOr(roiCalculator.min, 1),
-        max: numberOr(roiCalculator.max, 50),
-        step: numberOr(roiCalculator.step, 1),
-        defaultValue: numberOr(roiCalculator.defaultValue, 10),
+        min,
+        max,
+        step: numberOr(roiCalculator.step, 1, 1, 1000000),
+        defaultValue: numberOr(roiCalculator.defaultValue, 10, min, max),
         unit: clipText(roiCalculator.unit || 'Kunden', 40),
-        baseValue: numberOr(roiCalculator.baseValue, 500),
-        multiplier: numberOr(roiCalculator.multiplier, 12),
+        baseValue: numberOr(roiCalculator.baseValue, 500, 0, 1000000000),
+        multiplier: numberOr(roiCalculator.multiplier, 12, 0, 1000),
         resultLabel: clipText(roiCalculator.resultLabel || 'Geschätzter jährlicher Mehrertrag', 160),
         resultPrefix: clipText(roiCalculator.resultPrefix || 'ca. ', 20),
         resultSuffix: clipText(roiCalculator.resultSuffix || ' € / Jahr', 40)
@@ -743,7 +779,7 @@ function publicBranding(userData = {}, proposal = {}) {
         agencyName: userData.agencyName || proposal.agencyName || 'Agentur',
         brandLogoUrl: logo,
         brandPrimaryColor: brandColor,
-        hideBranding: userData.hideBranding !== false,
+        hideBranding: userData.hideBranding === true,
         customDomain: userData.customDomain || ''
     };
 }
@@ -990,7 +1026,13 @@ async function dispatchOutboundWebhook(userId, eventName, payload) {
                 }
             }
         } else {
-            webhookConfig = memoryWebhooks.get(userId);
+            const stored = memoryWebhooks.get(userId);
+            if (stored && stored.webhookEnabled !== false && (stored.webhookUrl || stored.url)) {
+                webhookConfig = {
+                    url: stored.webhookUrl || stored.url,
+                    events: stored.webhookEvents || stored.events || ['proposal.signed']
+                };
+            }
         }
 
         if (!webhookConfig || !webhookConfig.url) return;
@@ -1086,9 +1128,13 @@ app.post('/api/generate', verifyFirebaseAuth, requireAuth, async (req, res) => {
             deadline,
             agencyName,
             agencyEmail,
-            language = 'de',
-            tone = 'professional'
+            language: requestedLanguage = 'de',
+            tone: requestedTone = 'professional'
         } = req.body || {};
+        const language = ['de', 'en', 'fr', 'es'].includes(clipText(requestedLanguage, 12).toLowerCase())
+            ? clipText(requestedLanguage, 12).toLowerCase()
+            : 'de';
+        const tone = clipText(requestedTone, 32).toLowerCase();
         const documentType = normalizeDocumentType(req.body?.documentType);
 
         if (!clientName || !projectGoals) {
@@ -1651,16 +1697,10 @@ app.post('/api/track-export', verifyFirebaseAuth, requireAuth, async (req, res) 
         if (db) {
             const userRef = db.collection('users').doc(userId);
             const userDoc = await userRef.get();
-
             if (userDoc.exists) {
-                const userData = userDoc.data();
-                if (!hasActiveProEntitlement(userData)) {
-                    await userRef.update({
-                        freeProposalsUsed: admin.firestore.FieldValue.increment(1),
-                        lastExportAt: admin.firestore.FieldValue.serverTimestamp()
-                    });
-                    console.log(`📊 [Quota] Export atomar erhöht für Free-User: ${userId}`);
-                }
+                await userRef.set({
+                    lastExportAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
             }
         }
 
@@ -1703,7 +1743,8 @@ async function handleSaveProposal(req, res) {
         const agencyEmail = clipText(body.agencyEmail, 254);
         const proposalHTML = sanitizeProposalHtml(body.proposalHTML);
         const logoUrl = isSafeImageUrl(body.logoUrl) ? String(body.logoUrl).trim() : '';
-        const language = clipText(body.language || 'de', 12).toLowerCase();
+        const requestedLanguage = clipText(body.language || 'de', 12).toLowerCase();
+        const language = ['de', 'en', 'fr', 'es'].includes(requestedLanguage) ? requestedLanguage : 'de';
         const tone = clipText(body.tone || 'professional', 32).toLowerCase();
         const theme = clipText(body.theme || 'modern-minimal', 40).toLowerCase();
         const roiCalculator = body.roiCalculator;
@@ -1736,12 +1777,12 @@ async function handleSaveProposal(req, res) {
             tone,
             documentType,
             theme,
-            clientName: escapeHtml(clientName),
+            clientName,
             clientEmail: clientEmail || '',
-            category: escapeHtml(category || 'Projekt-Dokument'),
-            budget: escapeHtml(budget || 'Nach Vereinbarung'),
-            deadline: escapeHtml(deadline || 'ca. 4-6 Wochen'),
-            agencyName: escapeHtml(agencyName || 'Agentur'),
+            category,
+            budget,
+            deadline,
+            agencyName,
             agencyEmail: agencyEmail || '',
             logoUrl,
             proposalHTML,
@@ -1942,7 +1983,7 @@ app.get('/api/proposals/:id', async (req, res) => {
 /**
  * 3. Angebot Duplizieren / Versionieren (Klon-Funktion): POST /api/proposals/:id/duplicate
  */
-app.post('/api/proposals/:id/duplicate', verifyFirebaseAuth, requireAuth, async (req, res) => {
+app.post('/api/proposals/:id/duplicate', verifyFirebaseAuth, requireAuth, requirePro, async (req, res) => {
     try {
         const userId = req.user.uid;
         const sourceId = req.params.id;
@@ -2282,17 +2323,21 @@ app.post('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, requirePro,
             customDomain: customDomain || '',
             brandPrimaryColor: brandPrimaryColor || '#2563eb',
             brandLogoUrl: isSafeImageUrl(brandLogoUrl) ? brandLogoUrl : '',
-            hideBranding: hideBranding !== false,
+            hideBranding: hideBranding === true,
             customDomainVerified: false,
             updatedAt: new Date().toISOString()
         };
 
+        let previousDomain = '';
         if (db) {
+            const existing = await db.collection('users').doc(userId).get();
+            previousDomain = existing.exists ? existing.data().customDomain || '' : '';
             await db.collection('users').doc(userId).set(updateData, { merge: true });
         }
-
+        forgetCustomBranding(previousDomain);
+        forgetCustomBranding(customDomain);
         if (customDomain) {
-            customDomainMap.set(customDomain, publicBranding({
+            cacheCustomBranding(customDomain, publicBranding({
                 agencyName: req.user.name || 'Agentur',
                 brandLogoUrl: updateData.brandLogoUrl,
                 brandPrimaryColor: updateData.brandPrimaryColor,
@@ -2332,7 +2377,7 @@ app.get('/api/user/custom-domain', verifyFirebaseAuth, requireAuth, async (req, 
                     customDomain: u.customDomain || '',
                     brandPrimaryColor: u.brandPrimaryColor || '#2563eb',
                     brandLogoUrl: u.brandLogoUrl || '',
-                    hideBranding: u.hideBranding !== false,
+                    hideBranding: u.hideBranding === true,
                     customDomainVerified: u.customDomainVerified || false,
                     isPro: hasActiveProEntitlement(u)
                 };
@@ -2397,7 +2442,7 @@ app.get('/api/branding/resolve', async (req, res) => {
 
         if (domain) {
             const cleanDomain = String(domain).trim().toLowerCase();
-            branding = customDomainMap.get(cleanDomain);
+            branding = cachedCustomBranding(cleanDomain);
 
             if (!branding && db && /^[a-z0-9.-]+$/.test(cleanDomain)) {
                 const snap = await db.collection('users')
@@ -2409,7 +2454,7 @@ app.get('/api/branding/resolve', async (req, res) => {
                     if (hasActiveProEntitlement(u)) {
                         branding = publicBranding(u);
                         branding.customDomain = cleanDomain;
-                        customDomainMap.set(cleanDomain, branding);
+                        cacheCustomBranding(cleanDomain, branding);
                     }
                 }
             }
@@ -2450,7 +2495,7 @@ app.get('/api/branding/resolve', async (req, res) => {
 // =============================================================================
 // 🤖 FEATURE 4: MANUELLER TEST-TRIGGER FÜR FOLLOW-UP
 // =============================================================================
-app.post('/api/proposals/:id/trigger-followup', verifyFirebaseAuth, requireAuth, async (req, res) => {
+app.post('/api/proposals/:id/trigger-followup', verifyFirebaseAuth, requireAuth, requirePro, async (req, res) => {
     try {
         const proposalId = req.params.id;
         const userId = req.user.uid;
@@ -2474,6 +2519,12 @@ app.post('/api/proposals/:id/trigger-followup', verifyFirebaseAuth, requireAuth,
         const result = await triggerSingleProposalFollowUp(proposalId, { db, memoryProposals, force: false });
         res.json(result);
     } catch (error) {
+        if (error.code === 'FOLLOW_UP_COOLDOWN') {
+            return res.status(429).json({
+                error: 'FOLLOW_UP_COOLDOWN',
+                message: 'Für dieses Dokument wurde gerade erst eine Erinnerung gesendet.'
+            });
+        }
         console.error('❌ Fehler beim Auslösen des Follow-Ups:', error);
         res.status(500).json({ error: 'SERVER_ERROR' });
     }
@@ -2655,8 +2706,8 @@ async function handleSignAndAcceptProposal(req, res) {
         const safeSignature = parsePngDataUrl(signatureDataUrl);
 
         const signaturePayload = {
-            signerName: escapeHtml(clipText(signerName, 160)),
-            signerRole: escapeHtml(clipText(signerRole || '', 80)),
+            signerName: clipText(signerName, 160),
+            signerRole: clipText(signerRole || '', 80),
             signedAt,
             ipAddress,
             userAgent: clipText(req.headers['user-agent'] || 'Browser Client', 300),
@@ -2664,12 +2715,47 @@ async function handleSignAndAcceptProposal(req, res) {
         };
 
         if (db && proposalRef) {
-            await proposalRef.update({
-                status: 'signed',
-                signedAt: signedAt,
-                signature: signaturePayload,
-                serverSignedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            try {
+                proposal = await db.runTransaction(async (transaction) => {
+                    const fresh = await transaction.get(proposalRef);
+                    if (!fresh.exists) {
+                        const error = new Error('NOT_FOUND');
+                        error.statusCode = 404;
+                        throw error;
+                    }
+                    const current = fresh.data();
+                    if (!tokensMatch(current.securityToken, token)) {
+                        const error = new Error('FORBIDDEN');
+                        error.statusCode = 403;
+                        throw error;
+                    }
+                    if (current.status === 'signed') {
+                        const error = new Error('ALREADY_SIGNED');
+                        error.statusCode = 400;
+                        throw error;
+                    }
+                    transaction.update(proposalRef, {
+                        status: 'signed',
+                        signedAt,
+                        signature: signaturePayload,
+                        serverSignedAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    return current;
+                });
+            } catch (transactionError) {
+                if (transactionError.statusCode) {
+                    const messages = {
+                        NOT_FOUND: 'Angebot nicht gefunden.',
+                        FORBIDDEN: 'Ungültiger Freigabe-Link.',
+                        ALREADY_SIGNED: 'Dieses Angebot wurde bereits unterzeichnet.'
+                    };
+                    return res.status(transactionError.statusCode).json({
+                        error: transactionError.message,
+                        message: messages[transactionError.message] || 'Signatur konnte nicht gespeichert werden.'
+                    });
+                }
+                throw transactionError;
+            }
         } else {
             proposal.status = 'signed';
             proposal.signedAt = signedAt;
@@ -2677,7 +2763,7 @@ async function handleSignAndAcceptProposal(req, res) {
             memoryProposals.set(proposalId, proposal);
         }
 
-        console.log(`✍️ [E-Sign & Accept Success] Angebot ${proposalId} rechtswirksam akzeptiert von: ${signerName} (${signerRole || 'Auftraggeber'}) - IP: ${ipAddress}`);
+        console.log(`✍️ [E-Sign] Angebot ${proposalId} akzeptiert.`);
 
         // 4. Outbound Webhook Dispatch (Zapier, Make, CRM, Slack)
         dispatchOutboundWebhook(proposal.userId, 'proposal.signed', {
@@ -2786,9 +2872,9 @@ app.post('/api/integrations/webhook', verifyFirebaseAuth, requireAuth, requirePr
             }, { merge: true });
         } else {
             memoryWebhooks.set(userId, {
-                url: safeWebhookUrl,
-                events: safeEvents,
-                enabled: Boolean(webhookEnabled)
+                webhookUrl: safeWebhookUrl,
+                webhookEvents: safeEvents,
+                webhookEnabled: Boolean(webhookEnabled)
             });
         }
 
@@ -2936,11 +3022,22 @@ const handleCreateCheckoutSession = async (req, res) => {
             isSpoofed: false
         };
 
-        const targetPriceId = priceForCountry(ppp.detectedIpCountry);
+        const targetPriceId = priceForCountry(ppp.detectedIpCountry, ppp.isSpoofed);
         if (!targetPriceId || !configuredAgencyPriceIds().has(targetPriceId)) {
             return res.status(503).json({ error: 'AGENCYOS_PRICING_NOT_CONFIGURED' });
         }
 
+        if (db) {
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (userDoc.exists && hasActiveProEntitlement(userDoc.data())) {
+                return res.status(409).json({
+                    error: 'SUBSCRIPTION_ALREADY_ACTIVE',
+                    message: 'Es besteht bereits ein aktives AgencyOS-Abo. Bitte verwalte es im Kundenportal.'
+                });
+            }
+        }
+
+        const existingCustomerId = await ownedStripeCustomerId(userId);
         const sessionPayload = {
             mode: 'subscription',
             line_items: [
@@ -2950,6 +3047,12 @@ const handleCreateCheckoutSession = async (req, res) => {
                 },
             ],
             client_reference_id: userId,
+            subscription_data: {
+                metadata: {
+                    userId,
+                    app: 'agencyos'
+                }
+            },
             metadata: {
                 userId: userId,
                 userEmail: userEmail,
@@ -2965,7 +3068,9 @@ const handleCreateCheckoutSession = async (req, res) => {
             cancel_url: `${baseUrl}/index.html?payment=canceled`,
         };
 
-        if (userEmail && req.user.email_verified === true) {
+        if (existingCustomerId) {
+            sessionPayload.customer = existingCustomerId;
+        } else if (userEmail && req.user.email_verified === true) {
             sessionPayload.customer_email = userEmail;
         }
 
@@ -3040,7 +3145,7 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
     const userEmail = req.user.email;
     const userName = req.user.name || req.user.displayName || userEmail?.split('@')[0] || 'Nutzer';
 
-    console.log(`\n🚨 [GDPR Account Deletion] Starte vollständige Account-Löschung für: ${userId} (${userEmail})`);
+    console.log(`\n🚨 [GDPR Account Deletion] Starte vollständige Account-Löschung für: ${userId}`);
 
     const deletionSummary = {
         subscriptionsCancelled: 0,
@@ -3057,21 +3162,17 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
         const stripeCustomerId = await ownedStripeCustomerId(userId);
 
         if (stripeCustomerId) {
-            try {
-                const subscriptions = await stripe.subscriptions.list({
-                    customer: stripeCustomerId,
-                    status: 'all'
-                });
+            const subscriptions = await stripe.subscriptions.list({
+                customer: stripeCustomerId,
+                status: 'all'
+            });
 
-                for (const sub of subscriptions.data) {
-                    if (['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status) && subscriptionIncludesAgencyPrice(sub)) {
-                        await stripe.subscriptions.cancel(sub.id);
-                        deletionSummary.subscriptionsCancelled++;
-                        console.log('🔒 [Stripe] AgencyOS-Subscription sofort storniert.');
-                    }
+            for (const sub of subscriptions.data) {
+                if (['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status) && subscriptionIncludesAgencyPrice(sub)) {
+                    await stripe.subscriptions.cancel(sub.id);
+                    deletionSummary.subscriptionsCancelled++;
+                    console.log('🔒 [Stripe] AgencyOS-Subscription sofort storniert.');
                 }
-            } catch (stripeErr) {
-                console.warn('⚠️ [Stripe Deletion] Warnung bei Subscription-Stornierung:', stripeErr.message);
             }
         }
 
@@ -3101,6 +3202,15 @@ app.post('/api/delete-account', verifyFirebaseAuth, requireAuth, async (req, res
                 await db.collection('users').doc(userId).collection('productAccess').doc('agency_os').delete();
             } catch (accessErr) {
                 console.warn('⚠️ [Database] Fehler beim Löschen des Produktzugriffs:', accessErr.message);
+            }
+
+            try {
+                const storageBucket = process.env.FIREBASE_STORAGE_BUCKET
+                    || `${process.env.FIREBASE_PROJECT_ID || 'polymath-productions'}.firebasestorage.app`;
+                const [logoFiles] = await admin.storage().bucket(storageBucket).getFiles({ prefix: `logos/${userId}/` });
+                await Promise.all(logoFiles.map(file => file.delete().catch(() => {})));
+            } catch (logoErr) {
+                console.warn('⚠️ [Storage] Logos konnten nicht entfernt werden:', logoErr.message);
             }
 
             // Nutzerdokument in Firestore löschen
@@ -3235,7 +3345,8 @@ app.post('/api/support-chat', supportChatLimiter, async (req, res) => {
                             }, 8000);
                         })
                     ]).finally(() => clearTimeout(timeoutHandle));
-                    return res.json({ reply: response.response.text(), provider: 'gemini' });
+                    const reply = String(response.response.text() || '').slice(0, 4000);
+                    return res.json({ reply, provider: 'gemini' });
                 } catch (error) {
                     lastError = error;
                     const retryable = [429, 500, 502, 503, 504].includes(Number(error.status));
@@ -3264,14 +3375,15 @@ async function reconcileExpiredEntitlements() {
     if (!db) return;
     try {
         const snapshot = await db.collection('users').where('isPro', '==', true).get();
-        const batch = db.batch();
-        let changed = 0;
-        for (const doc of snapshot.docs) {
-            if (!hasActiveProEntitlement(doc.data())) {
+        const expired = snapshot.docs.filter(doc => !hasActiveProEntitlement(doc.data()));
+        for (let index = 0; index < expired.length; index += 200) {
+            const batch = db.batch();
+            expired.slice(index, index + 200).forEach(doc => {
+                const data = doc.data();
                 batch.set(doc.ref, {
                     isPro: false,
                     plan: 'free',
-                    subscriptionStatus: doc.data().subscriptionStatus || 'expired',
+                    subscriptionStatus: data.subscriptionStatus || 'expired',
                     downgradedAt: admin.firestore.FieldValue.serverTimestamp(),
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
@@ -3279,16 +3391,15 @@ async function reconcileExpiredEntitlements() {
                     product: 'agency_os',
                     plan: 'free',
                     active: false,
-                    status: doc.data().subscriptionStatus || 'expired',
-                    accessUntil: doc.data().subscriptionAccessUntil || null,
-                    stripeSubscriptionId: doc.data().stripeSubscriptionId || null,
+                    status: data.subscriptionStatus || 'expired',
+                    accessUntil: data.subscriptionAccessUntil || null,
+                    stripeSubscriptionId: data.stripeSubscriptionId || null,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
-                changed++;
-            }
+            });
+            await batch.commit();
         }
-        if (changed) await batch.commit();
-        if (changed) console.log(`🔒 [Entitlement Reconciler] ${changed} abgelaufene Pro-Mitgliedschaften auf Free gesetzt.`);
+        if (expired.length) console.log(`🔒 [Entitlement Reconciler] ${expired.length} abgelaufene Pro-Mitgliedschaften auf Free gesetzt.`);
     } catch (error) {
         console.warn('⚠️ [Entitlement Reconciler] Prüfung fehlgeschlagen:', error.message);
     }

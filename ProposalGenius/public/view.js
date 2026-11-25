@@ -424,7 +424,7 @@ function renderProposal(p, branding = null) {
     document.getElementById('docBudget').textContent = p.budget || '-';
 
     // Body Text
-    const proposalHtml = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(p.proposalHTML || '') : (p.proposalHTML || '');
+    const proposalHtml = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(p.proposalHTML || '') : '';
     document.getElementById('aiTextContent').innerHTML = proposalHtml || '<p>Kein Text hinterlegt.</p>';
 
     // Logo & Branding (Feature 1: White-Labeling)

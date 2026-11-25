@@ -42,6 +42,7 @@ service cloud.firestore {
       // Beim Update dürfen sensible Felder nicht verändert werden (Abo-Status, Zähler etc.)
       // Diese Felder werden ausschließlich vom sicheren Backend/Stripe-Webhook aktualisiert.
       allow update: if isOwner(userId)
+                    && request.resource.data.email == request.auth.token.email
                     && request.resource.data.isPro == resource.data.isPro
                     && request.resource.data.plan == resource.data.plan
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -72,7 +73,11 @@ service cloud.firestore {
                         'agencyEmail', 'agencyPhone', 'agencyAddress', 'logoUrl',
                         'brandLogoUrl', 'brandPrimaryColor', 'brandColor',
                         'hideBranding', 'marketingOptIn', 'updatedAt'
-                    ]);
+                    ])
+                    && (!('logoUrl' in request.resource.data) || request.resource.data.logoUrl == '' || request.resource.data.logoUrl.matches('^https://[^\\s]{1,2048}$'))
+                    && (!('brandLogoUrl' in request.resource.data) || request.resource.data.brandLogoUrl == '' || request.resource.data.brandLogoUrl.matches('^https://[^\\s]{1,2048}$'))
+                    && (!('brandPrimaryColor' in request.resource.data) || request.resource.data.brandPrimaryColor.matches('^#[0-9a-fA-F]{6}$'))
+                    && (!('brandColor' in request.resource.data) || request.resource.data.brandColor.matches('^#[0-9a-fA-F]{6}$'));
 
       allow delete: if false; // Löschung nur über Backend
     }

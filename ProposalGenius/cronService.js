@@ -9,6 +9,12 @@ const { sendFollowUpEmail } = require('./emailService');
 const { isFollowUpEnabled } = require('./securityUtils');
 
 const FOLLOW_UP_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 Stunden
+const FOLLOW_UP_COOLDOWN_MS = 60 * 60 * 1000;
+
+function followUpOnCooldown(sentAt, now = Date.now()) {
+    const lastSent = Date.parse(sentAt || '');
+    return Number.isFinite(lastSent) && (now - lastSent) < FOLLOW_UP_COOLDOWN_MS;
+}
 let cronIntervalTimer = null;
 
 /**
@@ -164,6 +170,12 @@ async function triggerSingleProposalFollowUp(proposalId, { db, memoryProposals, 
         throw new Error('Dieses Angebot ist bereits rechtsverbindlich signiert.');
     }
 
+    if (!force && followUpOnCooldown(proposal.followUpSentAt)) {
+        const error = new Error('FOLLOW_UP_COOLDOWN');
+        error.code = 'FOLLOW_UP_COOLDOWN';
+        throw error;
+    }
+
     const emailResult = await sendFollowUpEmail({
         to: proposal.clientEmail,
         clientName: proposal.clientName || 'Kunde',
@@ -233,5 +245,7 @@ module.exports = {
     startCronEngine,
     checkAndSendFollowUps,
     triggerSingleProposalFollowUp,
-    FOLLOW_UP_THRESHOLD_MS
+    followUpOnCooldown,
+    FOLLOW_UP_THRESHOLD_MS,
+    FOLLOW_UP_COOLDOWN_MS
 };

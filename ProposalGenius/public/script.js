@@ -1270,24 +1270,23 @@ async function handleGenerateProposal() {
             return;
         }
 
-        let generatedHTML = '';
-        if (response.ok) {
-            const data = await response.json();
-            generatedHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(data.html || '') : (data.html || '');
-
-            // Increment local profile count on successful generate
-            if (currentUser && !currentUserProfile.isPro) {
-                if (!currentUserProfile.freeProposalsUsedByDocType) {
-                    currentUserProfile.freeProposalsUsedByDocType = {};
-                }
-                currentUserProfile.freeProposalsUsedByDocType[docTypeVal] = (currentUserProfile.freeProposalsUsedByDocType[docTypeVal] || 0) + 1;
-                updatePlanBadge();
-            }
-        } else {
-            generatedHTML = buildLocalI18nDocumentTemplate(docTypeVal, selectedLanguage, client, goals, category, budget, deadline, agency, deliverables);
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || errData.error || 'Dokument konnte nicht erstellt werden.');
         }
 
-        document.getElementById('aiTextContent').innerHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(generatedHTML) : '';
+        const data = await response.json();
+        const generatedHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(data.html || '') : '';
+
+        if (currentUser && !currentUserProfile.isPro) {
+            if (!currentUserProfile.freeProposalsUsedByDocType) {
+                currentUserProfile.freeProposalsUsedByDocType = {};
+            }
+            currentUserProfile.freeProposalsUsedByDocType[docTypeVal] = (currentUserProfile.freeProposalsUsedByDocType[docTypeVal] || 0) + 1;
+            updatePlanBadge();
+        }
+
+        document.getElementById('aiTextContent').innerHTML = generatedHTML;
         
         document.getElementById('docHeading').textContent = `${headingPrefix}: ${category}`;
         isProposalGenerated = true;
@@ -1301,6 +1300,14 @@ async function handleGenerateProposal() {
         }
 
     } catch (err) {
+        if (currentUser) {
+            console.warn("Dokumentenerstellung fehlgeschlagen:", err);
+            alert(err.message || "Das Dokument konnte gerade nicht erstellt werden.");
+            loader.classList.add('hidden');
+            statusDot.className = "w-2 h-2 rounded-full bg-amber-400";
+            statusText.textContent = "Vorschau bereit";
+            return;
+        }
         console.warn("Backend nicht erreichbar, nutze lokale Engine:", err);
         const generatedHTML = buildLocalI18nDocumentTemplate(docTypeVal, selectedLanguage, client, goals, category, budget, deadline, agency, deliverables);
         document.getElementById('aiTextContent').innerHTML = window.AgencyHtml ? AgencyHtml.sanitizeProposalHtml(generatedHTML) : '';
@@ -1308,6 +1315,8 @@ async function handleGenerateProposal() {
         document.getElementById('docHeading').textContent = `${headingPrefix}: ${category}`;
         isProposalGenerated = true;
         loader.classList.add('hidden');
+        statusDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        statusText.textContent = "Dokument generiert";
 
         if (!currentUser) {
             showUnlockOverlay(true);
@@ -1711,8 +1720,10 @@ async function handlePublishESign() {
 
         // Modal mit Link füllen
         const modal = document.getElementById('eSignShareModal');
-        document.getElementById('eSignShareUrlInput').value = data.shareUrl;
-        document.getElementById('openShareUrlLink').href = data.shareUrl;
+        const shareUrl = window.AgencyHtml ? AgencyHtml.safeHttpUrl(data.shareUrl) : '';
+        if (!shareUrl) throw new Error('Freigabe-Link ist ungültig.');
+        document.getElementById('eSignShareUrlInput').value = shareUrl;
+        document.getElementById('openShareUrlLink').href = shareUrl;
 
         modal.classList.remove('hidden');
         setTimeout(() => {
@@ -2175,6 +2186,7 @@ function renderDashboardTable(proposals) {
 
         const dateFormatted = p.createdAt ? new Date(p.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
         const durationFormatted = formatDuration(p.totalDurationSeconds || 0);
+        const safeShareUrl = window.AgencyHtml ? (AgencyHtml.safeHttpUrl(p.shareUrl) || '') : '';
 
         tr.innerHTML = `
             <td class="py-3 px-4">
@@ -2189,10 +2201,10 @@ function renderDashboardTable(proposals) {
             <td class="py-3 px-3 text-slate-400 text-[11px] whitespace-nowrap">${dateFormatted}</td>
             <td class="py-3 px-4 text-right whitespace-nowrap">
                 <div class="inline-flex items-center gap-1.5">
-                    <button type="button" class="copy-proposal-link-btn p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors" title="Magic Link kopieren" data-url="${escapeHtml(p.shareUrl || '')}">
+                    <button type="button" class="copy-proposal-link-btn p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors" title="Magic Link kopieren" data-url="${escapeHtml(safeShareUrl)}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                     </button>
-                    <a href="${escapeHtml(p.shareUrl || '#')}" target="_blank" class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-colors" title="Im Kunden-Viewer öffnen">
+                    <a href="${escapeHtml(safeShareUrl || '#')}" target="_blank" rel="noopener noreferrer" class="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-colors" title="Im Kunden-Viewer öffnen">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </a>
                     <button type="button" class="view-proposal-tracking-btn p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors" title="Live Tracking Analytics" data-id="${escapeHtml(p.id)}">
@@ -2525,17 +2537,6 @@ async function handlePDFExport() {
         return;
     }
 
-    const isPro = currentUserProfile.isPro === true;
-    const freeUsed = currentUserProfile.freeProposalsUsed || 0;
-
-    if (!isPro && freeUsed >= 1) {
-        showPaywallModal(
-            "Limit erreicht",
-            "Dein kostenloses Angebot ist aufgebraucht. Upgrade auf Pro (29€/Monat), um unbegrenzt PDFs zu exportieren."
-        );
-        return;
-    }
-
     const exportBtn = document.getElementById('exportBtn');
     setButtonLoading(exportBtn, true, 'Erstelle PDF...');
 
@@ -2556,20 +2557,13 @@ async function handlePDFExport() {
     try {
         await html2pdf().set(opt).from(element).save();
 
-        if (!isPro && isFirebaseReady && currentUser) {
-            const docTypeVal = document.getElementById('documentTypeSelect')?.value || 'proposal';
+        if (isFirebaseReady && currentUser) {
             const headers = await getAuthHeaders();
             await fetch('/api/track-export', {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({ documentType: docTypeVal })
+                body: JSON.stringify({ documentType: document.getElementById('documentTypeSelect')?.value || 'proposal' })
             }).catch(console.warn);
-
-            if (!currentUserProfile.freeProposalsUsedByDocType) {
-                currentUserProfile.freeProposalsUsedByDocType = {};
-            }
-            currentUserProfile.freeProposalsUsedByDocType[docTypeVal] = (currentUserProfile.freeProposalsUsedByDocType[docTypeVal] || 0) + 1;
-            updatePlanBadge();
         }
     } catch (error) {
         console.error("PDF Export Fehler:", error);
@@ -2752,8 +2746,6 @@ async function triggerStripeCheckout() {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
-                userId: currentUser ? currentUser.uid : 'anonymous',
-                userEmail: currentUser ? currentUser.email : '',
                 timezone: userTimezone,
                 billingCycle: paywallBillingCycle
             })

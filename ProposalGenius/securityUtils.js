@@ -15,6 +15,79 @@ function normalizeIp(address) {
     return ip;
 }
 
+function isPrivateIPv4(octets) {
+    const [a, b, c] = octets;
+    if (octets.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a === 198 && b === 51 && c === 100) return true;
+    if (a === 203 && b === 113) return true;
+    if (a >= 224) return true;
+    return false;
+}
+
+function ipv6Groups(address) {
+    let input = normalizeIp(address);
+    if (!input || !input.includes(':')) return null;
+
+    const dotted = input.match(/^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/);
+    if (dotted) {
+        const octets = dotted[2].split('.').map(Number);
+        if (octets.some(part => part > 255)) return null;
+        const high = ((octets[0] << 8) | octets[1]).toString(16);
+        const low = ((octets[2] << 8) | octets[3]).toString(16);
+        input = `${dotted[1]}${high}:${low}`;
+    }
+
+    const halves = input.split('::');
+    if (halves.length > 2) return null;
+    const parseSide = (part) => {
+        if (!part) return [];
+        const groups = [];
+        for (const piece of part.split(':')) {
+            if (!/^[0-9a-f]{1,4}$/i.test(piece)) return null;
+            groups.push(parseInt(piece, 16));
+        }
+        return groups;
+    };
+    const head = parseSide(halves[0]);
+    if (!head) return null;
+    if (halves.length === 1) return head.length === 8 ? head : null;
+    const tail = parseSide(halves[1]);
+    if (!tail) return null;
+    const missing = 8 - head.length - tail.length;
+    if (missing < 1) return null;
+    return [...head, ...Array(missing).fill(0), ...tail];
+}
+
+function isPrivateIPv6(address) {
+    const groups = ipv6Groups(address);
+    if (!groups) return true;
+    const [g0, g1, g2, g3, g4, g5, g6, g7] = groups;
+    if (groups.every(group => group === 0) || (groups.slice(0, 7).every(group => group === 0) && g7 === 1)) return true;
+    if ((g0 & 0xff00) === 0xff00) return true;
+    if ((g0 & 0xfe00) === 0xfc00) return true;
+    if ((g0 & 0xffc0) === 0xfe80 || (g0 & 0xffc0) === 0xfec0) return true;
+    if (g0 === 0x2001 && (g1 === 0x0db8 || (g1 === 0x0002 && g2 === 0))) return true;
+    if (g0 === 0x0100 && g1 === 0 && g2 === 0 && g3 === 0) return true;
+    if (g0 === 0x64 && g1 === 0xff9b && g2 === 1) return true;
+    if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff) {
+        return isPrivateIPv4([(g6 >> 8) & 255, g6 & 255, (g7 >> 8) & 255, g7 & 255]);
+    }
+    if (g0 === 0x2002) {
+        return isPrivateIPv4([(g1 >> 8) & 255, g1 & 255, (g2 >> 8) & 255, g2 & 255]);
+    }
+    if (g0 === 0x64 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+        return isPrivateIPv4([(g6 >> 8) & 255, g6 & 255, (g7 >> 8) & 255, g7 & 255]);
+    }
+    return false;
+}
+
 function isPrivateAddress(address) {
     const normalized = normalizeIp(address);
     if (!normalized) return true;
@@ -27,30 +100,10 @@ function isPrivateAddress(address) {
     if (/^\d+$/.test(normalized) || /^0x[0-9a-f.]+$/i.test(normalized)) return true;
 
     if (net.isIPv4(normalized)) {
-        const octets = normalized.split('.').map(Number);
-        const [a, b, c] = octets;
-        if (a === 0 || a === 10 || a === 127) return true;
-        if (a === 169 && b === 254) return true;
-        if (a === 172 && b >= 16 && b <= 31) return true;
-        if (a === 192 && b === 168) return true;
-        if (a === 100 && b >= 64 && b <= 127) return true;
-        if (a === 192 && b === 0 && (c === 0 || c === 2)) return true;
-        if (a === 198 && (b === 18 || b === 19)) return true;
-        if (a === 198 && b === 51 && c === 100) return true;
-        if (a === 203 && b === 113) return true;
-        if (a >= 224) return true;
-        return false;
+        return isPrivateIPv4(normalized.split('.').map(Number));
     }
 
-    if (net.isIPv6(normalized)) {
-        if (normalized === '::' || normalized === '::1') return true;
-        const mapped = normalized.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
-        if (mapped) return isPrivateAddress(mapped[1]);
-        if (/^(?:fc|fd|fe80|ff)/.test(normalized)) return true;
-        if (normalized.startsWith('2001:db8:') || normalized.startsWith('64:ff9b:1:')) return true;
-        return false;
-    }
-
+    if (normalized.includes(':')) return isPrivateIPv6(normalized);
     return false;
 }
 
@@ -110,6 +163,18 @@ function invoiceIncludesAgencyPrice(invoice, env = process.env) {
     const prices = agencyPriceIds(env);
     const lines = invoice?.lines?.data || [];
     return lines.some(line => prices.has(line?.price?.id || line?.pricing?.price_details?.price));
+}
+
+function checkoutPriceId(country, isSpoofed, env = process.env) {
+    if (isSpoofed) return env.AGENCY_OS_PRICE_EUR_MONTHLY || '';
+    const code = String(country || '').toUpperCase();
+    const priceByCountry = {
+        US: env.AGENCY_OS_PRICE_USD_MONTHLY,
+        AU: env.AGENCY_OS_PRICE_AUD_MONTHLY,
+        SG: env.AGENCY_OS_PRICE_SGD_MONTHLY,
+        ID: env.AGENCY_OS_PRICE_IDR_MONTHLY
+    };
+    return priceByCountry[code] || env.AGENCY_OS_PRICE_EUR_MONTHLY || '';
 }
 
 async function lookupAddresses(hostname, lookup) {
@@ -212,6 +277,7 @@ module.exports = {
     agencyPriceIds,
     subscriptionIncludesAgencyPrice,
     invoiceIncludesAgencyPrice,
+    checkoutPriceId,
     validateOutboundUrl,
     safeOutboundFetch
 };

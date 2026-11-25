@@ -18,8 +18,10 @@ const {
     isFollowUpEnabled,
     subscriptionIncludesAgencyPrice,
     invoiceIncludesAgencyPrice,
+    checkoutPriceId,
     validateOutboundUrl
 } = require('../securityUtils');
+const { followUpOnCooldown } = require('../cronService');
 const { resolveIpCountry } = require('../locationVerification');
 
 test('proposal HTML drops active content and keeps allowed markup', () => {
@@ -58,7 +60,9 @@ test('private and alternative addresses are blocked', () => {
     for (const address of [
         '127.0.0.1', '10.1.2.3', '192.168.1.20', '172.16.5.5', '169.254.169.254',
         '0.0.0.0', '100.64.0.1', '255.255.255.255', '::1', '::ffff:127.0.0.1',
-        'fc00::1', 'fe80::1', 'localhost', 'metadata.google.internal', '2130706433'
+        'fc00::1', 'fe80::1', 'fe81::1', '::ffff:7f00:1', '[::ffff:127.0.0.1]',
+        '2002:7f00:1::', '2002:a9fe:a9fe::', '64:ff9b::7f00:1',
+        'localhost', 'metadata.google.internal', '2130706433'
     ]) {
         assert.equal(isPrivateAddress(address), true, address);
     }
@@ -99,6 +103,16 @@ test('document type, follow-up flag, and price checks stay on the allowlist', ()
     assert.equal(subscriptionIncludesAgencyPrice({ items: { data: [{ price: { id: 'price_other' } }] } }, env), false);
     assert.equal(subscriptionIncludesAgencyPrice({ items: { data: [{ price: { id: 'price_eur' } }] } }, env), true);
     assert.equal(invoiceIncludesAgencyPrice({ lines: { data: [{ price: { id: 'price_idr' } }] } }, env), true);
+    assert.equal(checkoutPriceId('ID', false, env), 'price_idr');
+    assert.equal(checkoutPriceId('ID', true, env), 'price_eur');
+    assert.equal(checkoutPriceId('DE', false, env), 'price_eur');
+});
+
+test('manual follow-up respects a cooldown window', () => {
+    const now = Date.parse('2026-11-25T12:00:00Z');
+    assert.equal(followUpOnCooldown('2026-11-25T11:30:00Z', now), true);
+    assert.equal(followUpOnCooldown('2026-11-25T10:00:00Z', now), false);
+    assert.equal(followUpOnCooldown('', now), false);
 });
 
 test('outbound URLs must be HTTPS and resolve only to public addresses', async () => {
@@ -108,6 +122,9 @@ test('outbound URLs must be HTTPS and resolve only to public addresses', async (
     await assert.rejects(() => validateOutboundUrl('http://hooks.example.com/path', { lookup, isProduction: true }));
     await assert.rejects(() => validateOutboundUrl('https://user:pass@hooks.example.com/', { lookup }));
     await assert.rejects(() => validateOutboundUrl('https://127.0.0.1/latest', { lookup }));
+    await assert.rejects(() => validateOutboundUrl('https://[::ffff:127.0.0.1]/latest', { lookup }));
+    await assert.rejects(() => validateOutboundUrl('https://[2002:7f00:1::]/latest', { lookup }));
+    await assert.rejects(() => validateOutboundUrl('https://[fe81::1]/', { lookup }));
     await assert.rejects(() => validateOutboundUrl('https://rebind.example.com/', {
         lookup: async () => [{ address: '169.254.169.254', family: 4 }]
     }));
